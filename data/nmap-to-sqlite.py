@@ -3,11 +3,6 @@ import sqlite3
 from datetime import datetime
 import argparse
 
-#
-# Script to parse nmap xml files and populate an SQLite DB
-# use with Grafana Dashboard - https://hackertarget.com/nmap-dashboard-with-grafana/
-#
-
 def parse_nmap_xml(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
@@ -16,15 +11,14 @@ def parse_nmap_xml(xml_file):
     command_line = root.get('args', '')
 
     scan_start_time = root.get('start')
+    scan_start_timestamp = None
     if scan_start_time is not None:
-        # timestamps set to match native grafana format
-        scan_start_timestamp = int(scan_start_time) * 1000
+        scan_start_timestamp = int(scan_start_time) * 1000  # Convert to timestamp
 
     elapsed_time = ''
     elapsed_time_elem = root.find('runstats/finished')
     if elapsed_time_elem is not None:
         elapsed_time = elapsed_time_elem.get('elapsed')
-
 
     total_hosts = 0
     total_open_ports = 0
@@ -33,16 +27,16 @@ def parse_nmap_xml(xml_file):
     for host in root.findall('host'):
         total_hosts += 1
         ip = host.find('address').get('addr', '')
-        
+
         hostname_elems = host.findall('hostnames/hostname')
         hostname = hostname_elems[0].get('name', '') if hostname_elems else ''
-        
+
         os = 'Unknown'
         os_element = host.find('os')
-        if os_element:
+        if os_element is not None:
             os_match = os_element.find('osmatch')
-            os = os_match.get('name', 'Unknown') if os_match else 'Unknown'
-        
+            os = os_match.get('name', 'Unknown') if os_match is not None else 'Unknown'
+
         ports_tested = 0
         ports_open = 0
         ports_closed = 0
@@ -64,10 +58,10 @@ def parse_nmap_xml(xml_file):
                     ports_filtered += 1
 
                 service = port.find('service')
-                service_name = service.get('name', None) if service else None
-                service_product = service.get('product', None) if service else None
-                service_version = service.get('version', None) if service else None
-                service_ostype = service.get('ostype', None) if service else None
+                service_name = service.get('name', None) if service is not None else None
+                service_product = service.get('product', None) if service is not None else None
+                service_version = service.get('version', None) if service is not None else None
+                service_ostype = service.get('ostype', None) if service is not None else None
                 service_info = (service_product if service_product else '') + (' ' + service_version if service_version else '')
                 http_title = None
                 ssl_common_name = None
@@ -90,7 +84,7 @@ def parse_nmap_xml(xml_file):
 
                 if service_ostype and os == 'Unknown':
                     os = service_ostype
-                
+
                 ports.append({
                     'port': port_id,
                     'protocol': protocol,
@@ -103,7 +97,7 @@ def parse_nmap_xml(xml_file):
                 })
 
             extraports = ports_element.find('extraports')
-            if len(extraports):
+            if extraports is not None:
                 extraports_count = int(extraports.get('count', '0'))
                 extraports_state = extraports.get('state', '')
                 if extraports_state == 'closed':
@@ -133,13 +127,15 @@ def parse_nmap_xml(xml_file):
     scan = {
         'nmap_version': nmap_version,
         'command_line': command_line,
-        'start_time': scan_start_time,
+        'start_time': scan_start_timestamp,
         'elapsed_time': elapsed_time,
         'total_hosts': total_hosts,
         'total_open_ports': total_open_ports
     }
 
     return scan, hosts
+
+# Rest of the code remains unchanged (create_database, insert_data, and main)
 
 def create_database(db_name):
     conn = sqlite3.connect(db_name)
