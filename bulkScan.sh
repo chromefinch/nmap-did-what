@@ -28,6 +28,9 @@ read -p "Enter a unique scan title (e.g., ProjectX_Q1_Scan): " SCAN_TITLE
 read -p "Enter the path to the host list file: " HOST_LIST_FILE
 read -p "Enter number of --top-ports: " topPorts
 read -p "Enter a port to exclude (if this port is the only live port, scans will be excluded): " ignore
+pingSweepdefault="Y"
+read -p "Skip Ping Sweep? (Y/n): " pingSweepq
+pingSweep=${pingSweepq:-$pingSweepdefault}
 Phase3default="-p-"
 echo "Phase 3 does a complete port discovery $Phase3default, you can overwrite that here (-p-/--top-ports X/skip) " 
 read -p "Skip will use results from Phase 2, I reccomend skipping or setting something other than -p-: " Phase3Answer
@@ -48,23 +51,29 @@ print_yellow "--- Using Host List: ${HOST_LIST_FILE} ---"
 
 # --- Phase 1: Discovery (SYN Scan, Top X, No Ping) ---
 print_blue "[+] Phase 1: Discovery Scan (Top $topPorts Ports, No Ping)"
-nmap -sS -T4 --max-retries 1 --max-rtt-timeout 300ms --host-timeout 1m --max-scan-delay 5 --min-rate 800 -Pn -n \
+nmap -sS -T4 --max-retries 1 --max-rtt-timeout 300ms --host-timeout 3m --max-scan-delay 5 --min-rate 800 -Pn -n \
      -iL "${HOST_LIST_FILE}" \
      --top-ports $topPorts \
      -oA "${SCAN_TITLE}_phase1_Top${topPorts}Ports"
 
 # --- Phase 2: Ping Sweep (Optional - Run against original list) ---
+pingSweepFunct(){
 print_blue "[+] Phase 2: Ping Sweep on original list"
 nmap -sn -T4 --max-retries 1 --max-rtt-timeout 300ms --host-timeout 5m -n \
      -iL "${HOST_LIST_FILE}" \
      -oA "${SCAN_TITLE}_phase2_PingSweep"
+grep "Host: " "${SCAN_TITLE}_phase2_PingSweep.gnmap" | awk '{print $2}' >> "${SCAN_TITLE}_live_hosts.txt"
+}
+case $pingSweep in
+    [nN]) pingSweepFunct ;;
+    *) print_yellow "[+] Skipping Ping Sweep" ;;
+esac
 
 # --- Extract Live Hosts (Primarily from Phase 1 SYN Scan) ---
 print_blue "[+] Extracting Live Hosts found in Phases 1 & 2"
 # Using .nmap output; consider using .gnmap 'Status: Up' for potentially more reliable parsing
 grep -E "Ports: [0-9]+" "${SCAN_TITLE}_phase1_Top${topPorts}Ports.gnmap" | grep open | awk '!/$ignore/' | awk '{print $2}' > "${SCAN_TITLE}_live_hosts.txt"
-# Optional: Add hosts found *only* by Phase 2 ping sweep if needed
-grep "Host: " "${SCAN_TITLE}_phase2_PingSweep.gnmap" | awk '{print $2}' >> "${SCAN_TITLE}_live_hosts.txt"
+
 sort -u "${SCAN_TITLE}_live_hosts.txt" -o "${SCAN_TITLE}_live_hosts.txt" # Keep unique if merging
 
 if [[ ! -s "${SCAN_TITLE}_live_hosts.txt" ]]; then
