@@ -107,7 +107,7 @@ esac
 print_blue "[+] Extracting Open Ports discovered in Phase 3"
 # grep "^[0-9]\+\/.*state open" "${SCAN_TITLE}_phase3_Port_Disco.gnmap" | awk -F '/' '{print $1}' | sort -nu > "${SCAN_TITLE}_open_ports.txt"
 # Alternative using .gnmap (often more reliable):
-grep -Eo "[0-9]+\/open" ${SCAN_TITLE}_phase3_Port_Disco.gnmap | grep -Eo "[0-9]+" | sort -nu | paste -sd',' > "${SCAN_TITLE}_open_ports.txt"
+grep -Eo "[0-9]+\/open" ${SCAN_TITLE}_phase3_Port_Disco.gnmap | grep -Eo "[0-9]+" | sort -nu | paste -sd',' >> "${SCAN_TITLE}_open_ports.txt"
 
 if [[ ! -s "${SCAN_TITLE}_open_ports.txt" ]]; then
     print_red "[!] Warning: No open ports found in Phase 3 scan results."
