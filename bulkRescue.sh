@@ -24,8 +24,10 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # --- User Input ---
-read -p "Enter a unique scan title (e.g., ProjectX_Q1_Scan): " SCAN_TITLE
+echo "kickoff phase 4 with modifed files or if there was crash. "
+read -p "Enter the previous Scan Title to resume: " SCAN_TITLE
 read -p "Enter the path to the host list file: " HOST_LIST_FILE
+topPorts=$(ls -1 | grep "${SCAN_TITLE}_phase1_Top"*"Ports.gnmap" | grep -Eo "[0-9]+Ports\.gnmap" | grep -Eo "[0-9]+")
 print_red "Remember to update both ${SCAN_TITLE}_phase1_Top${topPorts}Ports.gnmap and ${SCAN_TITLE}_phase3_Port_Disco.gnmap with desired target ports"
 # --- Input Validation ---
 if [[ -z "$SCAN_TITLE" ]]; then
