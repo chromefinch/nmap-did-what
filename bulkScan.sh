@@ -35,6 +35,7 @@ Phase3default="-p-"
 echo "Phase 3 does a complete port discovery $Phase3default, you can overwrite that here (-p-/--top-ports X/skip) " 
 read -p "Skip will use results from Phase 2, I reccomend skipping or setting something other than -p-: " Phase3Answer
 Phase3=${Phase3Answer:-$Phase3default}
+read -p "How many parallel scans should we run in phase4? " howmany
 
 # --- Input Validation ---
 if [[ -z "$SCAN_TITLE" ]]; then
@@ -117,30 +118,24 @@ fi
 
 # --- Phase 4: Deep Scan (Version/Script/OS) on Live Hosts & Found Ports ---
 print_blue "[+] Phase 4: Deep Scan on Live Hosts and Found Ports"
-while IFS= read -r IP ; do
-    PORT=$(grep -E "$IP \(\)\s+Ports: " ${SCAN_TITLE}_phase3_Port_Disco.gnmap | grep -Eo "[0-9]+\/open" | grep -Eo "[0-9]+" | paste -sd',')
-    test -f ./"${SCAN_TITLE}_phase4_DeepScan_HOST_${IP}.nmap" >/dev/null 2>&1 && print_purple "[!] ${IP} already scanned" ||
-    if [[ -n "$PORT" ]]; then
-        print_blue "[*] Sarting scan ${IP} -p ${PORT}"
-        nmap -A -T4 --max-retries 3 --max-rtt-timeout 300ms --host-timeout 8m -Pn \
-                "$IP" \
-                -p "$PORT" \
-                -oA "${SCAN_TITLE}_phase4_DeepScan_HOST_${IP}"
-    else
-        # No ports found - print message and skip nmap for this IP
-        print_red "[!] No open ports found for ${IP} in ${SCAN_TITLE}_phase3_Port_Disco.gnmap. Trying Phase 1 sweep."
-        PORT=$(grep -E "$IP \(\)\s+Ports: " ${SCAN_TITLE}_phase1_Top${topPorts}Ports.gnmap | grep -Eo "[0-9]+\/open" | grep -Eo "[0-9]+" | paste -sd',')
-        if [[ -n "$PORT" ]]; then
-            print_blue "[*] Sarting scan ${IP} -p ${PORT}"
-                nmap -A -T4 --max-retries 3 --max-rtt-timeout 300ms --host-timeout 8m -Pn \
-                        "$IP" \
-                        -p "$PORT" \
-                        -oA "${SCAN_TITLE}_phase4_DeepScan_HOST_${IP}"
-        else
-            print_red "[!] No open ports found for ${IP} in ${SCAN_TITLE}_phase1_Top${topPorts}Ports.gnmap. Skipping Deep Scan."
+export SCAN_TITLE topPorts # Export variables needed inside parallel
+cat "${SCAN_TITLE}_live_hosts.txt" | parallel -j $howmany --line-buffered '
+    IP="{}"
+    PORT=$(grep -E "$IP \(\)\s+Ports: " "${SCAN_TITLE}_phase3_Port_Disco.gnmap" | grep -Eo "[0-9]+\/open" | grep -Eo "[0-9]+" | paste -sd\',')
+    if [[ -z "$PORT" ]]; then
+        PORT=$(grep -E "$IP \(\)\s+Ports: " "${SCAN_TITLE}_phase1_Top${topPorts}Ports.gnmap" | grep -Eo "[0-9]+\/open" | grep -Eo "[0-9]+" | paste -sd\',')
+        if [[ -z "$PORT" ]]; then
+            echo -e "\033[0;31mNo open ports found for ${IP}. Skipping Deep Scan.\033[0m"
+            exit 0
         fi
     fi
-done < "${SCAN_TITLE}_live_hosts.txt"
+    test -f ./"${SCAN_TITLE}_phase4_DeepScan_HOST_${IP}.nmap" && echo -e "\033[0;35m${IP} already scanned\033[0m" || {
+        echo -e "\033[0;34m[*] Starting scan ${IP} -p ${PORT}\033[0m"
+        nmap -A -T4 --max-retries 3 --max-rtt-timeout 300ms --host-timeout 8m -Pn "$IP" -p "$PORT" -oA "${SCAN_TITLE}_phase4_DeepScan_HOST_${IP}"
+    }
+'
+
+
 print_green "[+] Phase 4 complete"
 
 # This is sloppy, but hopefully it imports to 
