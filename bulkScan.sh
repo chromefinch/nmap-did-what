@@ -119,6 +119,7 @@ fi
 print_blue "[+] Phase 4: Deep Scan on Live Hosts and Found Ports"
 while IFS= read -r IP ; do
     PORT=$(grep -E "$IP \(\)\s+Ports: " ${SCAN_TITLE}_phase3_Port_Disco.gnmap | grep -Eo "[0-9]+\/open" | grep -Eo "[0-9]+" | paste -sd',')
+    test -f ./"${SCAN_TITLE}_phase4_DeepScan_HOST_${IP}.nmap" >/dev/null 2>&1 && print_purple "[!] ${IP} already scanned" ||
     if [[ -n "$PORT" ]]; then
         print_blue "[*] Sarting scan ${IP} -p ${PORT}"
         nmap -A -T4 --max-retries 3 --max-rtt-timeout 300ms --host-timeout 8m -Pn \
