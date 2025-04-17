@@ -29,8 +29,8 @@ def parse_nmap_xml(xml_file):
     # Nmap 'startstr' attribute provides a human-readable time if needed
     if scan_start_time_str is not None:
         try:
-            # timestamps set to match native grafana format (milliseconds)
-            scan_start_timestamp = int(scan_start_time_str) * 1000
+            # timestamps set to match native grafana format (milliseconds) OR NOT b/c that's stupid
+            scan_start_timestamp = int(scan_start_time_str)
         except ValueError:
             print(f"Warning: Could not parse scan start time '{scan_start_time_str}' as integer.", file=sys.stderr)
             scan_start_timestamp = None # Keep it None if conversion fails
