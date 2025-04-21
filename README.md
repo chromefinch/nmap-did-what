@@ -15,7 +15,7 @@ The project consists of two main components:
 
 ### File Structure
 
-- **Scanning**: A bash/Python script to aid in bulk scanning. Emphasis on scanning efficiency followed by speed.
+- **Scanning**: A bash/Python script to aid in bulk scanning. Emphasis on scanning efficiency followed by speed, go from scans taking days to hours. 
 - **parse.sh**: A bash script to search hostnames for keywords, then prints the /24 they're found in. Think looking for endpoint or server subnets.  
 - **nmap-to-sqlite.py**: A Python script that parses Nmap XML output and stores the data in an SQLite database.
 - **Dockerfile**: Creates a Docker container based on the official Grafana image, including the necessary configurations for the SQLite data source and dashboard.
