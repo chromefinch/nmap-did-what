@@ -75,4 +75,5 @@ Multiple scans can be reviewed within the DB and the Nmap Dashboard time filters
 
 ## Credits
 
-Thanks to the Nmap and Grafana projects for providing powerful open-source tools for network scanning and data visualization.
+Thanks to the Nmap and Grafana projects for providing powerful open-source tools for network scanning and data visualization. 
+I also received assistance form Gogole's Gemini AI, especially for the python. 
