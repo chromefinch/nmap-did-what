@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import ipaddress
 
 def calculate_ips_from_file(file_path):
