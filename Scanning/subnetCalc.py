@@ -2,40 +2,34 @@
 
 import ipaddress
 
-def calculate_ips_from_file(file_path):
+def calculate_total_ips_from_file():
     """
-    Reads a file containing subnets, calculates the total number of IPs,
-    and returns the result.
-
-    Args:
-        file_path (str): Path to the file containing subnets in CIDR notation.
-
-    Returns:
-        int: Total number of IPs across all subnets in the file.
+    Prompts the user for a file containing a list of IP subnets,
+    calculates the number of IPs in each subnet, and returns the total.
     """
+    while True:
+        file_path = input("Please enter the path to the file containing IP subnets (one per line): ")
+        try:
+            with open(file_path, 'r') as f:
+                subnets = [line.strip() for line in f if line.strip()]
+            break
+        except FileNotFoundError:
+            print(f"Error: File not found at '{file_path}'. Please try again.")
+        except Exception as e:
+            print(f"An error occurred while reading the file: {e}. Please check the file and try again.")
+
     total_ips = 0
-    
-    try:
-        with open(file_path, 'r') as file:
-            # Read subnets line by line from the file
-            subnets = file.readlines()
-            # Remove newline characters and whitespace from each subnet
-            subnets = [subnet.strip() for subnet in subnets]
-            
-            for subnet in subnets:
-                # Create an IPv4 or IPv6 network object
-                network = ipaddress.ip_network(subnet, strict=False)
-                # Add the number of IP addresses in the subnet to the total
-                total_ips += network.num_addresses
+    for subnet_str in subnets:
+        try:
+            network = ipaddress.ip_network(subnet_str, strict=False)
+            num_ips = network.num_addresses
+            total_ips += num_ips
+            print(f"Subnet: {subnet_str}, Number of IPs: {num_ips}")
+        except ValueError:
+            print(f"Warning: Invalid IP subnet format '{subnet_str}'. Skipping.")
 
-    except FileNotFoundError:
-        print(f"Error: The file '{file_path}' was not found.")
-    except ValueError:
-        print(f"Error: One or more subnets in the file are invalid.")
-
+    print(f"\nTotal number of IPs across all subnets: {total_ips}")
     return total_ips
 
-# Example usage
-file_path = 'subnets.txt'  # Replace with your file path
-total = calculate_ips_from_file(file_path)
-print(f"Total number of IPs: {total}")
+if __name__ == "__main__":
+    calculate_total_ips_from_file()
