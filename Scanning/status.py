@@ -96,7 +96,7 @@ def monitor_scan_progress():
                 num_found_hosts = len(found_all_hosts)
                 num_open_ports_hosts = len(found_open_hosts)
                 percent_complete = (num_found_hosts / total_ips) * 100 if total_ips > 0 else 0
-                status_line = f"\rFound {num_found_hosts} unique hosts, {num_open_ports_hosts} with open ports. Progress: {percent_complete:.2f}%"
+                status_line = f"\rScanned {num_found_hosts} unique hosts, {num_open_ports_hosts} with open ports. Progress: {percent_complete:.2f}%"
                 print(status_line, end='', flush=True)
             time.sleep(5)
     except KeyboardInterrupt:
