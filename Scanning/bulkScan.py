@@ -366,7 +366,6 @@ if __name__ == "__main__":
     print_yellow(f"--- Phase 3 Mode: {phase3_mode} ---")
     print_yellow(f"--- Parallel Scans (Phase 4): {how_many_parallel} ---")
     print("-" * 20)
-    time.sleep(2)
 
     # --- Phase 1: Discovery (SYN Scan, Top X, No Ping) ---
     nmap_phase1_args = [
