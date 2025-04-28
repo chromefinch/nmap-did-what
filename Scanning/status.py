@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
-
 import time
 import ipaddress
 import re
+import sys  # For clearing the terminal line
 
 def get_total_ips_from_file(subnet_file_path):
     """Calculates the total number of IPs from a file containing subnets."""
@@ -15,12 +14,12 @@ def get_total_ips_from_file(subnet_file_path):
                 network = ipaddress.ip_network(subnet_str, strict=False)
                 total_ips += network.num_addresses
             except ValueError:
-                print(f"Warning: Invalid subnet '{subnet_str}' in input file.")
+                print(f"Warning: Invalid subnet '{subnet_str}' in input file.", file=sys.stderr)
     except FileNotFoundError:
-        print(f"Error: Subnet file not found at '{subnet_file_path}'.")
+        print(f"Error: Subnet file not found at '{subnet_file_path}'.", file=sys.stderr)
         return None
     except Exception as e:
-        print(f"An error occurred reading the subnet file: {e}")
+        print(f"An error occurred reading the subnet file: {e}", file=sys.stderr)
         return None
     return total_ips
 
@@ -30,43 +29,42 @@ def get_host_port_status_from_gnmap(gnmap_file_path, existing_data=None):
     including whether they have open ports.
     """
     if existing_data is None:
-        host_data = {}  # {ip_address: {'up': True/False, 'open_ports': False}}
+        host_data = {}  # {ip_address: {'up': False, 'open_ports': False}}
     else:
         host_data = existing_data
 
     try:
         with open(gnmap_file_path, 'r') as f:
+            current_host = None
             for line in f:
                 if line.startswith("Host: "):
                     parts = line.split()
                     ip_address = parts[1]
                     status = parts[2]  # Usually 'up' or 'down'
+                    current_host = ip_address
                     if ip_address not in host_data:
                         host_data[ip_address] = {'up': False, 'open_ports': False}
                     host_data[ip_address]['up'] = (status == 'up')
-                elif line.startswith("Ports: "):
-                    match = re.search(r"Host: (\S+)", line)
-                    if match:
-                        ip_address = match.group(1)
-                        if ip_address in host_data and host_data[ip_address]['up']:
-                            if "open" in line:
-                                host_data[ip_address]['open_ports'] = True
+                elif line.startswith("Ports: ") and current_host:
+                    if "open" in line:
+                        host_data[current_host]['open_ports'] = True
     except FileNotFoundError:
-        print(f"Warning: .gnmap file not found at '{gnmap_file_path}'.")
+        print(f"Warning: .gnmap file not found at '{gnmap_file_path}'.", file=sys.stderr)
     except Exception as e:
-        print(f"An error occurred reading the .gnmap file: {e}")
+        print(f"An error occurred reading the .gnmap file: {e}", file=sys.stderr)
     return host_data
 
 def monitor_scan_progress():
     """
     Periodically polls an nmap .gnmap file for unique hosts and open ports,
     calculates the percentage complete, and shows the count of hosts with open ports.
+    It clears the previous status line before updating.
     """
     subnet_file = input("Please enter the path to the file containing the target subnets: ")
     total_ips = get_total_ips_from_file(subnet_file)
 
     if total_ips is None or total_ips == 0:
-        print("Could not determine the total number of target IPs. Exiting.")
+        print("Could not determine the total number of target IPs. Exiting.", file=sys.stderr)
         return
 
     gnmap_file = input("Please enter the path to the nmap .gnmap file: ")
@@ -80,12 +78,13 @@ def monitor_scan_progress():
                 num_found_hosts = len(host_info)
                 num_open_ports = sum(1 for data in host_info.values() if data['up'] and data['open_ports'])
                 percent_complete = (num_found_hosts / total_ips) * 100 if total_ips > 0 else 0
-                print(f"Found {num_found_hosts} unique hosts, {num_open_ports} with open ports. Progress: {percent_complete:.2f}%")
+                status_line = f"\rFound {num_found_hosts} unique hosts, {num_open_ports} with open ports. Progress: {percent_complete:.2f}%"
+                print(status_line, end='', flush=True)  # \r moves cursor to the start of the line
             time.sleep(5)
     except KeyboardInterrupt:
         print("\nMonitoring stopped by user.")
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        print(f"\nAn unexpected error occurred: {e}", file=sys.stderr)
 
 if __name__ == "__main__":
     monitor_scan_progress()
