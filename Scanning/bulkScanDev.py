@@ -136,35 +136,23 @@ def run_command(cmd_list, cwd=None, check=True):
         raise
 
 def parse_gnmap_live_hosts(gnmap_content, ignore_port=None):
-    """Parses .gnmap content to find live hosts with open ports."""
+    """
+    Parses .gnmap content to find hosts marked as 'Up'.
+    Includes hosts even if no open ports are listed in the Ports section.
+    The ignore_port logic is applied when extracting ports for deep scan, not here.
+    """
     live_hosts = set()
-    host_pattern = re.compile(r"^Host:\s+([\d.]+)\s+\(.*?\)?" # Optional hostname
-                             r"\s+Status:\s+Up"
-                             r".*?Ports:\s+(.*)", re.MULTILINE)
-    port_pattern = re.compile(r"(\d+)/open")
 
-    for match in host_pattern.finditer(gnmap_content):
-        ip = match.group(1)
-        ports_str = match.group(2)
-        open_ports_found = port_pattern.findall(ports_str)
-
-        if open_ports_found:
-            if ignore_port is not None: # Check if ignore_port is provided (could be 0)
-                # Convert ignore_port to string for comparison
-                ignore_port_str = str(ignore_port)
-                if all(p == ignore_port_str for p in open_ports_found):
-                    log.info(f"Host {ip} only has ignored port {ignore_port} open. Excluding.")
-                    continue
-            live_hosts.add(ip)
-
-    # Find hosts marked as Up (handles simple -sn output lines where Ports might not exist)
+    # Pattern to find hosts marked as Up, works for -sS and -sn output
     up_host_pattern = re.compile(r"^Host:\s+([\d.]+)\s+\(.*?\)?"
                                  r"\s+Status:\s+Up", re.MULTILINE)
+
     for match in up_host_pattern.finditer(gnmap_content):
          ip = match.group(1)
-         # Add only if status is up, regardless of ports section existence (for -sn)
          live_hosts.add(ip)
+         log.debug(f"Found Up host: {ip}")
 
+    log.info(f"Parsed gnmap content. Found {len(live_hosts)} live hosts.")
     return live_hosts
 
 
@@ -194,7 +182,7 @@ def parse_gnmap_open_ports_for_host(gnmap_content, target_ip):
         ports.update(found_ports)
         log.debug(f"Extracted open ports for {target_ip}: {ports}")
     else:
-         log.warning(f"Regex did not find a 'Ports:' line for host {target_ip} in the provided gnmap content.")
+         log.debug(f"Regex did not find a 'Ports:' line with open ports for host {target_ip} in the provided gnmap content.") # Changed to debug
 
 
     # Return sorted list of integers
@@ -209,7 +197,7 @@ def parse_gnmap_all_open_ports(gnmap_content):
     return sorted([int(p) for p in ports])
 
 
-def run_deep_scan(ip, scan_title_dir, phase3_gnmap_path, phase1_gnmap_path):
+def run_deep_scan(ip, scan_title_dir, gnmap_content_for_ports):
     """Task for running the Phase 4 deep scan on a single IP."""
     output_prefix = scan_title_dir / f"phase4_DeepScan_HOST_{ip}"
     xml_file = output_prefix.with_suffix(".xml") # Still track XML file for skipping logic
@@ -218,48 +206,37 @@ def run_deep_scan(ip, scan_title_dir, phase3_gnmap_path, phase1_gnmap_path):
         print_purple(f"[*] Skipping deep scan for {ip}: Output file {xml_file.name} already exists.")
         return ip, True # Indicate skipped
 
-    ports_to_scan = []
-    phase3_content = ""
-    phase1_content = ""
+    # Get ports for this specific host from the pre-loaded gnmap content
+    ports_to_scan = parse_gnmap_open_ports_for_host(gnmap_content_for_ports, ip)
 
+    if not ports_to_scan:
+        # This case should ideally be handled before calling run_deep_scan
+        # by filtering the host list, but keeping this check as a safeguard.
+        print_red(f"[!] No open ports found for {ip} in relevant results. Skipping Deep Scan.")
+        return ip, False # Indicate nothing to do
+
+    port_str = ",".join(map(str, ports_to_scan))
+    print_blue(f"[*] Starting deep scan on {ip} for ports: {port_str}")
+
+    nmap_cmd = [
+        "nmap", "-A", "-T4",
+        "--max-retries", "3",
+        "--max-rtt-timeout", "300ms",
+        "--host-timeout", "8m",
+        "-Pn",
+        "-p", port_str,
+        ip,
+        "-oA", str(output_prefix)
+    ]
     try:
-        # Read content only if files exist
-        if phase3_gnmap_path.exists():
-            phase3_content = phase3_gnmap_path.read_text()
-            ports_to_scan = parse_gnmap_open_ports_for_host(phase3_content, ip)
-
-        if not ports_to_scan and phase1_gnmap_path.exists():
-            log.info(f"No open ports found for {ip} in Phase 3 results, checking Phase 1...")
-            phase1_content = phase1_gnmap_path.read_text()
-            ports_to_scan = parse_gnmap_open_ports_for_host(phase1_content, ip)
-
-        if not ports_to_scan:
-            print_red(f"[!] No open ports found for {ip} in Phase 1 or 3 results. Skipping Deep Scan.")
-            return ip, False # Indicate failure/nothing to do
-
-        port_str = ",".join(map(str, ports_to_scan))
-        print_blue(f"[*] Starting deep scan on {ip} for ports: {port_str}")
-
-        nmap_cmd = [
-            "nmap", "-A", "-T4",
-            "--max-retries", "3",
-            "--max-rtt-timeout", "300ms",
-            "--host-timeout", "8m",
-            "-Pn",
-            "-p", port_str,
-            ip,
-            "-oA", str(output_prefix)
-        ]
         run_command(nmap_cmd, cwd=scan_title_dir) # Run in the scan directory
         print_green(f"[+] Deep scan completed for {ip}")
         return ip, True
-
     except FileNotFoundError:
          log.error("nmap command not found. Make sure nmap is installed and in your PATH.")
-         # Re-raise or handle appropriately - maybe return False?
-         return ip, False
+         return ip, False # Indicate failure
     except subprocess.CalledProcessError as e:
-        print_red(f"[!] Deep scan failed for {ip}. Error: {e}")
+        print_red(f"[!] Deep scan failed for {ip}. Error: {e.returncode}")
         # Log the specific error details from CalledProcessError
         log.error(f"Deep scan command failed for {ip}. Return code: {e.returncode}\nStderr: {e.stderr}")
         return ip, False
@@ -438,139 +415,174 @@ def main():
 
         live_hosts_file = current_scan_dir / f"{args.scan_title}_live_hosts.txt"
         open_ports_file = current_scan_dir / f"{args.scan_title}_open_ports.txt"
+        hosts_with_open_ports_file = current_scan_dir / f"{args.scan_title}_hosts_with_open_ports.txt"
+
 
         # --- Phase 1: Discovery ---
         print_blue(f"\n[+] Phase 1: Discovery Scan (Top {args.top_ports} Ports, No Ping)")
-        phase1_cmd = [
-            "nmap", "-sS", "-T4",
-            "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "3m",
-            "--max-scan-delay", "5", "--min-rate", "800",
-            "-Pn", "-n",
-            "-iL", str(host_file.resolve()), # Absolute path to input list
-            "--top-ports", str(args.top_ports),
-            "-oA", phase1_output_prefix # Output relative to current dir
-        ]
-        try:
-            run_command(phase1_cmd)
-            print_green("[+] Phase 1 completed.")
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            print_red(f"[!] Phase 1 failed: {e}")
-            sys.exit(1) # Exit if initial discovery fails
+        # Check if Phase 1 output already exists before running
+        if phase1_gnmap_path.exists():
+            print_purple(f"[*] Skipping Phase 1: Output file {phase1_gnmap_path.name} already exists.")
+        else:
+            phase1_cmd = [
+                "nmap", "-sS", "-T4",
+                "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "3m",
+                "--max-scan-delay", "5", "--min-rate", "800",
+                "-Pn", "-n",
+                "-iL", str(host_file.resolve()), # Absolute path to input list
+                "--top-ports", str(args.top_ports),
+                "-oA", phase1_output_prefix # Output relative to current dir
+            ]
+            try:
+                run_command(phase1_cmd)
+                print_green("[+] Phase 1 completed.")
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                print_red(f"[!] Phase 1 failed: {e}")
+                sys.exit(1) # Exit if initial discovery fails
+
 
         # --- Phase 2: Ping Sweep ---
         phase2_hosts = set()
         if not args.skip_ping_sweep:
             print_blue("[+] Phase 2: Ping Sweep on original list")
-            phase2_cmd = [
-                "nmap", "-sn", "-T4",
-                "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "5m",
-                "-n",
-                "-iL", str(host_file.resolve()),
-                "-oA", phase2_output_prefix
-            ]
-            try:
-                run_command(phase2_cmd)
-                if phase2_gnmap_path.exists():
+            # Check if Phase 2 output already exists before running
+            if phase2_gnmap_path.exists():
+                print_purple(f"[*] Skipping Phase 2: Output file {phase2_gnmap_path.name} already exists.")
+            else:
+                phase2_cmd = [
+                    "nmap", "-sn", "-T4",
+                    "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "5m",
+                    "-n",
+                    "-iL", str(host_file.resolve()),
+                    "-oA", phase2_output_prefix
+                ]
+                try:
+                    run_command(phase2_cmd)
+                    print_green("[+] Phase 2 completed.")
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    print_red(f"[!] Phase 2 failed: {e}")
+                    # Decide whether to continue or exit
+
+            # Always attempt to parse if the file exists (whether just created or pre-existing)
+            if phase2_gnmap_path.exists():
+                 try:
                      phase2_content = phase2_gnmap_path.read_text()
-                     phase2_hosts = parse_gnmap_live_hosts(phase2_content) # No ignore port here
-                     print_green(f"[+] Phase 2 completed. Found {len(phase2_hosts)} hosts responding.")
-                else:
-                    print_yellow("[!] Phase 2 .gnmap file not found after scan.")
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                print_red(f"[!] Phase 2 failed: {e}")
-                # Decide whether to continue or exit
+                     # Use parse_gnmap_live_hosts to get all 'Up' hosts from ping sweep
+                     phase2_hosts = parse_gnmap_live_hosts(phase2_content)
+                     print_green(f"[+] Extracted {len(phase2_hosts)} hosts marked 'Up' from Phase 2 results.")
+                 except Exception as e:
+                     print_red(f"[!] Error parsing Phase 2 gnmap file: {e}")
+            else:
+                print_yellow("[!] Phase 2 .gnmap file not found or scan was skipped.")
+
         else:
             print_yellow("[+] Skipping Phase 2 Ping Sweep.")
 
-        # --- Extract Live Hosts ---
-        print_blue("[+] Extracting Live Hosts found in Phases 1 & 2")
-        phase1_hosts = set()
+
+        # --- Extract All Live Hosts (for Phase 3 targeting) ---
+        # This list includes all hosts marked 'Up' in Phase 1 or Phase 2,
+        # regardless of whether open ports were found in Phase 1.
+        print_blue("[+] Extracting All Live Hosts found in Phases 1 & 2 (for Phase 3 targeting)")
+        phase1_live_hosts = set()
         if phase1_gnmap_path.exists():
             try:
                 phase1_content = phase1_gnmap_path.read_text()
-                phase1_hosts = parse_gnmap_live_hosts(phase1_content, args.ignore_port) # Apply ignore port
+                # Use parse_gnmap_live_hosts to get all 'Up' hosts from Phase 1
+                phase1_live_hosts = parse_gnmap_live_hosts(phase1_content)
+                print_green(f"[+] Extracted {len(phase1_live_hosts)} hosts marked 'Up' from Phase 1 results.")
             except Exception as e:
                 print_red(f"[!] Error parsing Phase 1 gnmap file: {e}")
         else:
             print_red("[!] Phase 1 gnmap file not found. Cannot extract live hosts from Phase 1.")
 
-        live_hosts = sorted(list(phase1_hosts.union(phase2_hosts)))
+        # Combine hosts from Phase 1 and Phase 2 (all 'Up' hosts)
+        all_live_hosts = sorted(list(phase1_live_hosts.union(phase2_hosts)))
 
-        if live_hosts:
+        if all_live_hosts:
             try:
                 with open(live_hosts_file, "w") as f:
-                    for host in live_hosts:
+                    for host in all_live_hosts:
                         f.write(host + "\n")
-                print_green(f"[+] {len(live_hosts)} Live hosts saved to {live_hosts_file.name}")
+                print_green(f"[+] {len(all_live_hosts)} All live hosts saved to {live_hosts_file.name}")
             except IOError as e:
                 print_red(f"Error writing live hosts file {live_hosts_file.name}: {e}")
         else:
             print_red("[!] Warning: No live hosts found meeting criteria. Further scans may be skipped.")
 
+
         # --- Phase 3: Port Discovery ---
         phase3_completed = False
-        if not live_hosts:
-            print_red("[!] Skipping Phase 3: No live hosts found.")
+        if not all_live_hosts:
+            print_red("[!] Skipping Phase 3: No live hosts found for targeting.")
         elif args.phase3.lower() == 'skip':
-            print_blue("[+] Phase 3: Skipped. Using Phase 1 results for port discovery.")
-            try:
-                if phase1_gnmap_path.exists():
+            print_blue("[+] Phase 3: Skipped. Using Phase 1 results for port discovery source.")
+            # Copy Phase 1 gnmap for consistency if Phase 3 is skipped
+            if phase1_gnmap_path.exists():
+                try:
                     shutil.copy(phase1_gnmap_path, phase3_gnmap_path)
+                    # Optional: Add a note to the copied file
                     with open(phase3_gnmap_path, "a") as f:
                         f.write("\n# Copied from Phase 1 due to Phase 3 skip.\n")
-                    phase3_completed = True
-                    print_green(f"[+] Copied {phase1_gnmap_path.name} to {phase3_gnmap_path.name}")
-                else:
-                     print_red("[!] Cannot skip Phase 3: Phase 1 gnmap file does not exist.")
-            except OSError as e:
-                print_red(f"Error copying Phase 1 results for Phase 3 skip: {e}")
+                    phase3_completed = True # Mark as completed for subsequent steps
+                    print_green(f"[+] Copied {phase1_gnmap_path.name} to {phase3_gnmap_path.name} for port discovery source.")
+                except OSError as e:
+                    print_red(f"Error copying Phase 1 results for Phase 3 skip: {e}")
+            else:
+                 print_red("[!] Cannot skip Phase 3 to use Phase 1 results: Phase 1 gnmap file does not exist.")
+
         else:
-            print_blue(f"[+] Phase 3: Port Discovery Scan ({args.phase3}) on {len(live_hosts)} Live Hosts")
-            # Use shlex to handle potential spaces in user-provided phase3 options like "--top-ports 100"
-            try:
-                 phase3_nmap_opts = shlex.split(args.phase3)
-            except ValueError as e:
-                 print_red(f"Error parsing Phase 3 options '{args.phase3}': {e}. Defaulting to '-p-'.")
-                 phase3_nmap_opts = ["-p-"]
+            print_blue(f"[+] Phase 3: Port Discovery Scan ({args.phase3}) on {len(all_live_hosts)} Live Hosts")
+            # Check if Phase 3 output already exists before running
+            if phase3_gnmap_path.exists():
+                 print_purple(f"[*] Skipping Phase 3: Output file {phase3_gnmap_path.name} already exists.")
+                 phase3_completed = True # Mark as completed if file exists
+            else:
+                # Use shlex to handle potential spaces in user-provided phase3 options like "--top-ports 100"
+                try:
+                     phase3_nmap_opts = shlex.split(args.phase3)
+                except ValueError as e:
+                     print_red(f"Error parsing Phase 3 options '{args.phase3}': {e}. Defaulting to '-p-'.")
+                     phase3_nmap_opts = ["-p-"]
+
+                phase3_cmd = [
+                    "nmap", "-sS", "-Pn", "-n", "-T4",
+                    "--max-retries", "2", "--max-rtt-timeout", "500ms", # Slightly increased timeout
+                    "--host-timeout", "15m",
+                    "--max-scan-delay", "5", "--min-rate", "800",
+                    "-iL", str(live_hosts_file.resolve()), # Use absolute path to the live hosts list
+                ]
+                phase3_cmd.extend(phase3_nmap_opts) # Add parsed port spec
+                phase3_cmd.extend(["-oA", phase3_output_prefix])
+
+                try:
+                    run_command(phase3_cmd)
+                    phase3_completed = True # Mark as completed after running
+                    print_green("[+] Phase 3 completed.")
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    print_red(f"[!] Phase 3 failed: {e}")
 
 
-            phase3_cmd = [
-                "nmap", "-sS", "-Pn", "-n", "-T4",
-                "--max-retries", "2", "--max-rtt-timeout", "500ms", # Slightly increased timeout
-                "--host-timeout", "15m",
-                "--max-scan-delay", "5", "--min-rate", "800",
-                "-iL", str(live_hosts_file.resolve()), # Use absolute path
-            ]
-            phase3_cmd.extend(phase3_nmap_opts) # Add parsed port spec
-            phase3_cmd.extend(["-oA", phase3_output_prefix])
-
-            try:
-                run_command(phase3_cmd)
-                phase3_completed = True
-                print_green("[+] Phase 3 completed.")
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                print_red(f"[!] Phase 3 failed: {e}")
-
-        # --- Extract Open Ports ---
+        # --- Extract All Unique Open Ports (Overall) ---
         open_ports_list = []
-        gnmap_for_port_extraction = None
+        gnmap_for_overall_ports = None # gnmap file to use for extracting ALL open ports
+
         if phase3_completed and phase3_gnmap_path.exists():
-            print_blue("[+] Extracting Open Ports discovered in Phase 3")
-            gnmap_for_port_extraction = phase3_gnmap_path
+            print_blue("[+] Extracting All Unique Open Ports discovered in Phase 3")
+            gnmap_for_overall_ports = phase3_gnmap_path
         elif phase1_gnmap_path.exists():
              # Fallback if phase 3 skipped or failed but phase 1 exists
              print_yellow("[!] Phase 3 skipped or failed, extracting overall ports from Phase 1.")
-             gnmap_for_port_extraction = phase1_gnmap_path
+             gnmap_for_overall_ports = phase1_gnmap_path
         else:
             print_red("[!] No usable .gnmap file found from Phase 1 or 3 to extract overall ports.")
 
 
-        if gnmap_for_port_extraction:
+        if gnmap_for_overall_ports:
             try:
-                content = gnmap_for_port_extraction.read_text()
+                content = gnmap_for_overall_ports.read_text()
                 open_ports_list = parse_gnmap_all_open_ports(content)
             except Exception as e:
-                print_red(f"[!] Error parsing {gnmap_for_port_extraction.name}: {e}")
+                print_red(f"[!] Error parsing {gnmap_for_overall_ports.name} for overall ports: {e}")
 
         if open_ports_list:
             try:
@@ -580,38 +592,104 @@ def main():
             except IOError as e:
                 print_red(f"Error writing open ports file {open_ports_file.name}: {e}")
         else:
-            print_red("[!] Warning: No open ports found in Phase 1 or 3 scan results.")
+            print_red("[!] Warning: No overall open ports found in Phase 1 or 3 scan results.")
+
+
+        # --- Determine Hosts for Deep Scan (Phase 4) ---
+        # Filter the list of all_live_hosts to include only those with discovered open ports.
+        hosts_for_deep_scan = []
+        gnmap_content_for_deep_scan_ports = None # Content of gnmap file to use for getting ports per host
+
+        if phase3_completed and phase3_gnmap_path.exists():
+             # Use Phase 3 results to determine ports for the deep scan
+             print_blue("[+] Identifying hosts with open ports from Phase 3 results for Deep Scan.")
+             try:
+                  gnmap_content_for_deep_scan_ports = phase3_gnmap_path.read_text()
+             except Exception as e:
+                  print_red(f"[!] Error reading Phase 3 gnmap for deep scan target determination: {e}")
+
+        elif phase1_gnmap_path.exists():
+             # Fallback: Use Phase 1 results if Phase 3 skipped or failed
+             print_yellow("[!] Phase 3 skipped or failed, identifying hosts with open ports from Phase 1 results for Deep Scan.")
+             try:
+                 gnmap_content_for_deep_scan_ports = phase1_gnmap_path.read_text()
+             except Exception as e:
+                  print_red(f"[!] Error reading Phase 1 gnmap for deep scan target determination: {e}")
+
+        else:
+             print_red("[!] No usable .gnmap file found from Phase 1 or 3. Cannot determine hosts with open ports for Deep Scan.")
+
+
+        # Populate hosts_for_deep_scan by checking each live host
+        if gnmap_content_for_deep_scan_ports and all_live_hosts:
+             for ip in all_live_hosts:
+                  # Get ports for this specific host from the chosen gnmap content
+                  ports = parse_gnmap_open_ports_for_host(gnmap_content_for_deep_scan_ports, ip)
+
+                  # Apply ignore_port logic at this stage (before deep scan)
+                  if args.ignore_port is not None and ports:
+                       ignore_port_str = str(args.ignore_port)
+                       # Filter out the ignored port if it's the only one
+                       filtered_ports = [p for p in ports if str(p) != ignore_port_str]
+                       if not filtered_ports:
+                            log.info(f"Host {ip} only has ignored port {args.ignore_port} open after filtering. Excluding from deep scan.")
+                            continue # Skip this host if only the ignored port remains
+
+                       ports = filtered_ports # Use the filtered list of ports
+
+
+                  if ports:
+                       # Host has open ports (after potential filtering), include it in the deep scan list
+                       hosts_for_deep_scan.append(ip)
+                       log.debug(f"Host {ip} has open ports for deep scan.")
+                  else:
+                       # Host is Up but no open ports found in the relevant gnmap (or only the ignored port was found)
+                       log.debug(f"Host {ip} is live but no applicable open ports found. Skipping deep scan.")
+
+             if not hosts_for_deep_scan:
+                 print_red("[!] No hosts found with open ports for the deep scan phase.")
+             else:
+                 # Optionally save the list of hosts with open ports
+                 try:
+                     with open(hosts_with_open_ports_file, "w") as f:
+                         for host in hosts_for_deep_scan:
+                             f.write(host + "\n")
+                     print_green(f"[+] {len(hosts_for_deep_scan)} hosts with open ports saved to {hosts_with_open_ports_file.name}")
+                 except IOError as e:
+                     print_red(f"Error writing hosts with open ports file {hosts_with_open_ports_file.name}: {e}")
 
 
         # --- Phase 4: Deep Scan ---
-        if not live_hosts:
-            print_red("[!] Skipping Phase 4: No live hosts found.")
+        # Now iterate over hosts_for_deep_scan instead of all_live_hosts
+        if not hosts_for_deep_scan:
+            print_red("[!] Skipping Phase 4: No hosts with open ports found.")
         else:
-            print_blue(f"\n[+] Phase 4: Starting Deep Scan on {len(live_hosts)} Live Hosts (using {args.parallel_scans} parallel threads)")
+            print_blue(f"\n[+] Phase 4: Starting Deep Scan on {len(hosts_for_deep_scan)} Hosts with Open Ports (using {args.parallel_scans} parallel threads)")
 
+            # Pass the gnmap content directly to the scan function to avoid re-reading
             scan_func = partial(run_deep_scan,
                                 scan_title_dir=current_scan_dir,
-                                phase3_gnmap_path=phase3_gnmap_path,
-                                phase1_gnmap_path=phase1_gnmap_path)
+                                gnmap_content_for_ports=gnmap_content_for_deep_scan_ports)
 
             successful_scans = 0
             failed_scans = 0
             with ThreadPoolExecutor(max_workers=args.parallel_scans) as executor:
-                futures = {executor.submit(scan_func, ip): ip for ip in live_hosts}
+                # Iterate over the filtered list of hosts with open ports
+                futures = {executor.submit(scan_func, ip): ip for ip in hosts_for_deep_scan}
                 for future in as_completed(futures):
                     ip = futures[future]
                     try:
                         target_ip, result = future.result()
                         if result: # True means success or skipped-existing
                             successful_scans += 1
-                        else: # False means failed or skipped-no-ports
-                            failed_scans += 1
+                        else: # False means failed
+                            failed_scans += 1 # This count includes actual failures and hosts skipped due to no ports (though the filtering step should prevent the latter)
                     except Exception as exc:
                         print_red(f'[!] Host {ip} generated an exception during Phase 4 future processing: {exc}')
                         log.exception(f"Phase 4 future exception for {ip}")
                         failed_scans += 1
 
-            print_green(f"[+] Phase 4 complete. Successful/Skipped: {successful_scans}, Failures/No Ports: {failed_scans}")
+            print_green(f"[+] Phase 4 complete. Successful/Skipped: {successful_scans}, Failures: {failed_scans}")
 
         # --- Final Output ---
         print_blue(f"\n--- Scan {args.scan_title} Complete ---")
