@@ -613,11 +613,6 @@ def main():
 
             print_green(f"[+] Phase 4 complete. Successful/Skipped: {successful_scans}, Failures/No Ports: {failed_scans}")
 
-            # --- Removed Combine Phase 4 XML ---
-            # The call to combine_nmap_xml was removed from here.
-            # The individual phase4_DeepScan_HOST_*.xml files will still exist,
-            # but they will not be combined into a single file by this script.
-
         # --- Final Output ---
         print_blue(f"\n--- Scan {args.scan_title} Complete ---")
         print_blue(f"--- Results are in: {current_scan_dir.resolve()} ---")
