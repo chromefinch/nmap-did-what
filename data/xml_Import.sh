@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 echo "Script to bulk import xml's using a for loop & the nmap-to-sqlite.py script" 
+echo "(Please run from folder containing nmap-to-sqlite.py)"
 
 # Check if the user is running with sudo
 if [[ "$EUID" -eq 0 ]]; then
