@@ -251,10 +251,9 @@ def parse_gnmap_all_open_ports(gnmap_content):
     return sorted([int(p) for p in ports])
 
 
-def run_deep_scan(ip, scan_title_dir, gnmap_content_for_ports):
+def run_deep_scan(ip, scan_title_dir,  scan_title, gnmap_content_for_ports):
     """Task for running the Phase 4 deep scan on a single IP."""
-    # Use Path object for consistency
-    output_prefix = scan_title_dir / f"phase4_DeepScan_HOST_{ip.replace(':', '_')}" # IPv6 safe filename
+    output_prefix = scan_title_dir / f"{scan_title}_phase4_DeepScan_HOST_{ip.replace(':', '_')}" # IPv6 safe filename
     xml_file = output_prefix.with_suffix(".xml")
 
     # Check if already scanned (using .xml as the primary indicator)
@@ -311,8 +310,6 @@ def run_deep_scan(ip, scan_title_dir, gnmap_content_for_ports):
         log.exception(f"Unexpected error during deep scan for {ip}")
         return ip, "failed", f"Failed {ip} (Error: {type(e).__name__})"
 
-# --- Removed combine_nmap_xml Function ---
-
 # --- Main Execution ---
 def main():
     # --- Argument Parser ---
@@ -358,7 +355,7 @@ def main():
     # Scan Title (Required)
     if args.scan_title is None:
         args.scan_title = prompt_user(
-            "Enter a unique scan title (e.g., ProjectX_Q1_Scan)",
+            "Enter a unique scan title (e.g., ProjectX_Q1_Scan). This should be an existing directory containing the target list: ",
             validation_func=is_not_empty,
             error_msg="Scan title cannot be empty."
         )
@@ -737,6 +734,7 @@ def main():
             # Use partial to pass fixed arguments to the worker function
             scan_func = partial(run_deep_scan,
                                 scan_title_dir=current_scan_dir,
+                                scan_title=args.scan_title,
                                 gnmap_content_for_ports=gnmap_content_for_deep_scan_ports)
 
             results_summary = {'success': 0, 'skipped_exists': 0, 'skipped_no_ports': 0, 'warning_down': 0, 'failed': 0}
