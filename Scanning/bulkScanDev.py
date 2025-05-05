@@ -31,7 +31,7 @@ except ImportError:
 # Keep logging basic unless verbose flag is used during argument parsing
 # Adjusted format for slighty more detail
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-log = logging.getLogger("NetScanScript") # Give logger a name
+log = logging.getLogger("bulkScan") # Give logger a name
 
 # --- Color Print Functions ---
 # (Using functions similar to the first script)
