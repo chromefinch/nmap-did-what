@@ -9,10 +9,9 @@ import shutil
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
-# Removed: import xml.etree.ElementTree as ET # Not used
 import logging
-import shlex # For safe command string splitting
-import time # Added for potential sleep/timing
+import shlex
+import time
 
 try:
     from colorama import init, Fore, Style
@@ -27,11 +26,7 @@ except ImportError:
     Fore = DummyColor()
     Style = DummyColor()
 
-# --- Logging Setup ---
-# Keep logging basic unless verbose flag is used during argument parsing
-# Adjusted format for slighty more detail
-logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-log = logging.getLogger("bulkScan") # Give logger a name
+log = None  
 
 # --- Color Print Functions ---
 # (Using functions similar to the first script)
@@ -334,12 +329,6 @@ def main():
 
     args = parser.parse_args()
 
-    # --- Configure Logging Level ---
-    if args.verbose:
-        log.setLevel(logging.DEBUG)
-    else:
-        log.setLevel(logging.INFO) # Show INFO level messages even if not verbose
-
     # --- Root Check ---
     try:
         if os.name == 'posix' and os.geteuid() != 0:
@@ -448,16 +437,37 @@ def main():
     scan_title_dir = base_output_dir / args.scan_title
     try:
         scan_title_dir.mkdir(parents=True, exist_ok=True)
-        log.info(f"Ensured output directory exists: {scan_title_dir.resolve()}")
+        # Use print here, before logging is configured
+        print(f"{Fore.BLUE}Output directory: {scan_title_dir.resolve()}{Style.RESET_ALL}")
     except OSError as e:
         print_red(f"Error creating output directory {scan_title_dir}: {e}")
         sys.exit(1)
+
+    # --- <<< CONFIGURE LOGGING >>> ---
+    log_file = scan_title_dir / f"{args.scan_title}_scan.log"
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    log_format = '%(asctime)s - %(levelname)s - [%(name)s] - %(message)s' # Format for the file
+
+    logging.basicConfig(
+        level=log_level,        # Set level (DEBUG or INFO)
+        format=log_format,      # Use defined format
+        filename=log_file,      # <<< Log to this file >>>
+        filemode='a',           # Append ('w' would overwrite)
+        force=True              # <<< Important: Ensures this config applies even if logging was used before
+    )
+
+    global log
+    log = logging.getLogger("bulkScan")
+
+    # You can now use log.info(), log.debug() etc. They will write to the file.
+    log.info(f"--- Logging started. Level: {logging.getLevelName(log_level)}. Output File: {log_file} ---")
 
     # --- Change Directory and Start Scan ---
     original_cwd = Path.cwd()
     try:
         os.chdir(scan_title_dir)
         current_scan_dir = Path(".") # Use relative path now
+        log.info(f"Changed working directory to: {current_scan_dir.resolve()}")
 
         print_yellow(f"\n--- Starting Scan: {args.scan_title} ---")
         print_yellow(f"--- Target List: {host_file.resolve()} ---")
@@ -468,7 +478,7 @@ def main():
         print_yellow(f"--- Phase 3 Spec: {args.phase3} ---")
         print_yellow(f"--- Phase 4 Parallelism: {args.parallel_scans} ---")
         print_yellow(f"--- Force Overwrite: {'Yes' if args.force_overwrite else 'No'} ---")
-        time.sleep(1) # Brief pause
+        time.sleep(1) 
 
         # Define file paths relative to current_scan_dir
         phase1_output_prefix = f"{args.scan_title}_phase1_Top{args.top_ports}Ports"
@@ -825,11 +835,14 @@ def main():
         # --- Final Output ---
         print_blue(f"\n--- Scan {args.scan_title} Complete ---")
         print_blue(f"--- Results are in: {current_scan_dir.resolve()} ---")
+        log.info(f"--- Scan {args.scan_title} Complete ---") 
 
     finally:
         # Ensure we change back to the original directory
         os.chdir(original_cwd)
         log.info(f"Changed back to original directory: {original_cwd}")
+        os.chdir(original_cwd)
+        logging.shutdown()
 
 if __name__ == "__main__":
     main()
