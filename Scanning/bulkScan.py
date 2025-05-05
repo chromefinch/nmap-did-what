@@ -1,619 +1,848 @@
 #!/usr/bin/env python3
 
+import argparse
 import os
-import sys
 import subprocess
+import sys
 import re
-import time
-import getpass
-import glob
 import shutil
-import xml.etree.ElementTree as ET
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import partial
+import logging
+import shlex
+import time
 
-# --- Color Printing Functions ---
+try:
+    from colorama import init, Fore, Style
+    init(autoreset=True) # Auto-reset color after each print
+except ImportError:
+    print("Warning: colorama library not found. Colors will not be displayed.")
+    print("Install it using: pip install colorama")
+    # Define dummy Fore and Style objects if colorama is not available
+    class DummyColor:
+        def __getattr__(self, name):
+            return ""
+    Fore = DummyColor()
+    Style = DummyColor()
+
+log = None  
+
+# --- Color Print Functions ---
+# (Using functions similar to the first script)
+def print_color(color, text):
+    print(f"{color}{text}{Style.RESET_ALL}", flush=True) # Add flush=True
+
+def print_green(text): print_color(Fore.GREEN, text)
+def print_yellow(text): print_color(Fore.YELLOW, text)
+def print_red(text): print_color(Fore.RED, text)
+def print_blue(text): print_color(Fore.BLUE, text)
+def print_purple(text): print_color(Fore.MAGENTA, text) # Magenta is often used for Purple
+
+# --- Helper Function for Prompts with Defaults ---
+# (Reusing the same function as before)
+def prompt_user(prompt_text, default=None, validation_func=None, error_msg="Invalid input."):
+    """Prompts the user for input, showing default, and optionally validating."""
+    prompt_suffix = f" [{default}]" if default is not None else ""
+    while True:
+        user_input = input(f"{Style.BRIGHT}{prompt_text}{Style.RESET_ALL}{prompt_suffix}: ").strip()
+        if not user_input and default is not None:
+            value = default
+            print(f"Using default: {value}") # Show that default is used
+            break
+        elif user_input:
+            value = user_input
+            if validation_func:
+                if validation_func(value):
+                    break # Valid input
+                else:
+                    print_red(error_msg)
+            else:
+                break # No validation needed
+        elif default is None: # Required input, no default provided
+             print_red("This field cannot be empty.")
+        # If input is empty AND default is None, loop continues asking
+
+    # Attempt to convert numeric defaults/inputs if possible (e.g., for ports, parallel scans)
+    if isinstance(default, int):
+        try:
+            return int(value)
+        except ValueError:
+             print_red(f"Expected an integer, but received '{value}'. Using default '{default}'.")
+             return default # Fallback to default if conversion fails after prompt
+    elif isinstance(default, str) and default.isdigit():
+         # Handle cases where default might be '1000' (string) but want int
+         try:
+             return int(value)
+         except ValueError:
+             # Keep as string if user input wasn't purely numeric
+             return value
+    return value # Return as string otherwise
+
+# --- Validation Functions ---
 # (Reusing the same functions as before)
-def print_color(text, color_code):
-    """Prints text in a specified color."""
-    print(f"\033[{color_code}m{text}\033[0m", flush=True)
+def is_valid_path(path_str):
+    p = Path(path_str)
+    return p.is_file() and os.access(p, os.R_OK) # Also check read permissions
 
-def print_green(text):
-    print_color(text, "0;32")
+def is_not_empty(value):
+    return bool(value)
 
-def print_yellow(text):
-    print_color(text, "0;33")
-
-def print_red(text):
-    print_color(text, "0;31")
-
-def print_blue(text):
-    print_color(text, "0;34")
-
-def print_purple(text):
-    print_color(text, "0;35")
-
-# --- Helper Functions ---
-def clear_screen():
-    """Clears the terminal screen."""
-    os.system('cls' if os.name == 'nt' else 'clear')
-
-def run_nmap_command(nmap_args, description="Running Nmap"):
-    """Runs an Nmap command using subprocess, prints status, and checks result."""
-    print_blue(f"[+] {description}")
-    print_yellow(f"    Command: {' '.join(nmap_args)}")
+def is_positive_int(value):
     try:
-        # Use subprocess.run, capture output, don't check immediately
-        result = subprocess.run(nmap_args, capture_output=True, text=True, check=False)
-
-        if result.returncode == 0:
-            print_green(f"    Nmap command completed successfully.")
-            # print(result.stdout) # Optionally print stdout
-            return True
-        else:
-            print_red(f"    Nmap command failed with exit code {result.returncode}.")
-            print_red(f"    Stderr: {result.stderr.strip()}")
-            # print_red(f"    Stdout: {result.stdout.strip()}") # Might contain useful info too
-            return False
-    except FileNotFoundError:
-        print_red("    Error: 'nmap' command not found. Make sure Nmap is installed and in PATH.")
-        sys.exit(1) # Nmap is essential, exit if not found
-    except Exception as e:
-        print_red(f"    An unexpected error occurred running Nmap: {e}")
+        return int(value) > 0
+    except ValueError:
         return False
 
-def parse_gnmap_for_live_hosts(gnmap_file, ignore_port_str):
+def is_valid_phase3(value):
+    # Basic check - allows 'skip', '-p-', '--top-ports X', etc.
+    # More complex validation could be added here if needed.
+    return bool(value)
+
+def is_yes_no(value):
+     return value.lower() in ['y', 'n', 'yes', 'no']
+
+# --- Core Nmap Functions (run_command, parse_gnmap_*) ---
+def run_command(cmd_list, cwd=None, check=True, description="Running command"):
+    """Runs a command using subprocess, logs output, and uses color."""
+    cmd_str = shlex.join(cmd_list) # For logging/display
+    print_blue(f"[+] {description}")
+    print_yellow(f"    Command: {cmd_str}")
+    log.info(f"Running command: {cmd_str} in {cwd or Path.cwd()}")
+    try:
+        # Use Popen for better handling of potential long-running processes if needed
+        process = subprocess.Popen(cmd_list, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=cwd)
+        stdout, stderr = process.communicate() # Wait for completion
+
+        if stdout:
+            log.debug(f"Command stdout:\n{stdout.strip()}")
+        if stderr:
+            # Log stderr as warning/error based on return code
+            if process.returncode != 0:
+                log.error(f"Command stderr:\n{stderr.strip()}")
+            else:
+                log.warning(f"Command stderr (Return Code 0):\n{stderr.strip()}") # Still useful sometimes
+
+        if check and process.returncode != 0:
+            log.error(f"Command failed with exit code {process.returncode}: {cmd_str}")
+            error_details = f"Stderr:\n{stderr.strip()}" if stderr.strip() else "No stderr."
+            # Raise exception but also print red message
+            print_red(f"    Command failed (Code: {process.returncode}). Check logs.")
+            raise subprocess.CalledProcessError(process.returncode, cmd_list, output=stdout, stderr=error_details)
+
+        print_green(f"    Command completed successfully.")
+        log.info(f"Command finished successfully: {cmd_str}")
+        return stdout, stderr # Return output streams for potential parsing
+
+    except FileNotFoundError:
+        log.error(f"Error: Command not found: {cmd_list[0]}")
+        print_red(f"    Error: Command not found: {cmd_list[0]}. Is nmap installed and in PATH?")
+        raise
+    except Exception as e:
+        log.exception(f"An unexpected error occurred while running command '{cmd_str}'")
+        print_red(f"    An unexpected error occurred: {e}")
+        raise
+
+def parse_gnmap_live_hosts(gnmap_content):
     """
-    Parses a GNMAP file to find hosts with open ports, excluding hosts
-    where the *only* open port is the ignore_port.
+    Parses .gnmap content to find hosts marked as 'Up'.
+    Includes hosts even if no open ports are listed in the Ports section.
     """
     live_hosts = set()
-    ignore_port = ignore_port_str if ignore_port_str.isdigit() else None
+    # Pattern to find hosts marked as Up, works for -sS and -sn output
+    # Handles optional hostname in parentheses
+    up_host_pattern = re.compile(r"^Host:\s+([\d.:a-fA-F]+)\s+(?:\(.*\)\s+)?Status:\s+Up", re.MULTILINE)
 
-    try:
-        with open(gnmap_file, 'r') as f:
-            for line in f:
-                if line.startswith('#') or "Status: Down" in line:
-                    continue
+    for match in up_host_pattern.finditer(gnmap_content):
+         ip = match.group(1)
+         live_hosts.add(ip)
+         log.debug(f"Found Up host: {ip}")
 
-                # Match lines indicating a host and its ports
-                match = re.match(r"Host:\s+(\S+)\s+\(.*\)\s+Ports:\s+(.*)", line)
-                if match:
-                    ip = match.group(1)
-                    ports_section = match.group(2)
+    log.info(f"Parsed gnmap content. Found {len(live_hosts)} hosts marked 'Up'.")
+    return live_hosts
 
-                    # Find all open ports for this host in this line
-                    open_ports = re.findall(r"(\d+)/open/", ports_section)
+# Renamed from parse_gnmap_open_ports_for_host for clarity
+def parse_gnmap_ports_for_host(gnmap_content, target_ip):
+    """Parses .gnmap content to find open or open|filtered ports for a specific host."""
+    ports = set()
+    # Corrected Regex: Looks for the line starting with the Host IP
+    # Handles optional hostname, searches until 'Ports:'
+    host_line_pattern = re.compile(
+        # Match start of line, Host:, the specific IP (IPv4/v6 safe), optional hostname
+        r"^Host:\s+" + re.escape(target_ip) + r"\s*(?:\(.*\)\s*)?"
+        # Match any characters non-greedily until the Ports section
+        r".*?\sPorts:\s+"
+        # Capture the rest of the line (the port details)
+        r"(.*)",
+        re.MULTILINE
+    )
+    # Pattern to find ports marked as 'open' or 'open|filtered'
+    port_pattern = re.compile(r"(\d+)/(?:open|open\|filtered)")
 
-                    if open_ports: # Host has at least one open port
-                        if ignore_port:
-                            # Check if the *only* open port(s) is the ignored one
-                            is_only_ignored = all(p == ignore_port for p in open_ports)
-                            if not is_only_ignored:
-                                live_hosts.add(ip)
-                        else:
-                            # No ignore port specified, add if any port is open
-                            live_hosts.add(ip)
-        return list(live_hosts)
-    except FileNotFoundError:
-        print_yellow(f"    Warning: GNMAP file not found for parsing: {gnmap_file}")
-        return []
-    except Exception as e:
-        print_red(f"    Error parsing GNMAP file {gnmap_file}: {e}")
-        return []
+    # Search the entire gnmap content for the pattern
+    match = host_line_pattern.search(gnmap_content)
+    if match:
+        ports_str = match.group(1) # Get the captured port details string
+        log.debug(f"Found ports string for {target_ip}: {ports_str[:100]}...") # Log found string
+        found_ports = port_pattern.findall(ports_str) # Find all matching ports
+        ports.update(found_ports)
+        log.debug(f"Extracted open/open|filtered ports for {target_ip}: {ports}")
+    else:
+         log.debug(f"Regex did not find a 'Ports:' line with open ports for host {target_ip} in the provided gnmap content.")
 
-def parse_gnmap_for_all_open_ports(gnmap_file):
-    """Parses a GNMAP file to extract all unique open ports."""
-    open_ports = set()
-    try:
-        with open(gnmap_file, 'r') as f:
-            content = f.read() # Read whole file for efficiency with findall
-            found_ports = re.findall(r"(\d+)/open/", content)
-            open_ports.update(found_ports)
-        # Return sorted list of unique ports
-        return sorted(list(open_ports), key=int)
-    except FileNotFoundError:
-        print_yellow(f"    Warning: GNMAP file not found for parsing open ports: {gnmap_file}")
-        return []
-    except Exception as e:
-        print_red(f"    Error parsing GNMAP file {gnmap_file} for open ports: {e}")
-        return []
+    # Return sorted list of integers
+    return sorted([int(p) for p in ports])
 
-def get_ports_for_ip(ip, gnmap_file):
-    """Extracts open ports for a specific IP from a gnmap file. (Reused)"""
-    ports = []
-    try:
-        with open(gnmap_file, 'r') as f:
-            for line in f:
-                 # Regex accounts for potential () after IP
-                if re.match(rf"^Host:\s+{re.escape(ip)}\s*(?:\(\))?\s+.*\s+Ports:\s+", line):
-                    found_ports = re.findall(r"(\d+)/open/", line)
-                    ports.extend(found_ports)
-                    break # Assume only one relevant line per host per file
-        return sorted(list(set(ports)), key=int) # Return unique, sorted ports
-    except FileNotFoundError:
-        return []
-    except Exception as e:
-        # Print error here as it's specific to this IP lookup
-        print_red(f"\nError reading/parsing {gnmap_file} for IP {ip}: {e}")
-        return []
 
-def run_deep_scan_worker(ip, scan_title, phase3_gnmap_path, phase1_gnmap_path):
-    """Worker function for Phase 4 parallel Nmap scans."""
-    output_base = f"{scan_title}_phase4_DeepScan_HOST_{ip}"
-    output_nmap_file = f"{output_base}.nmap"
-    scan_message_prefix = f"Scan for {ip}:"
+# --- NEW Function for Phase 1 Filtering ---
+def parse_gnmap_filter_no_open(gnmap_content, ignore_port=None):
+    """
+    Parses Phase 1 GNMAP content. Returns a set of IPs that had at least
+    one 'open' or 'open|filtered' port, AND filters out hosts where the
+    *only* open port is the `ignore_port`.
+    """
+    potentially_live_hosts = set()
+    # Pattern to find hosts marked as Up
+    up_host_pattern = re.compile(r"^Host:\s+([\d.:a-fA-F]+)\s+(?:\(.*\)\s+)?Status:\s+Up", re.MULTILINE)
 
-    # Check if already scanned
-    if os.path.exists(output_nmap_file):
-        return f"{scan_message_prefix} Skipped - Output file {output_nmap_file} already exists."
+    log.debug(f"Starting Phase 1 filter. Ignore Port: {ignore_port}")
 
-    # Find ports: Check Phase 3 first, then Phase 1 as fallback
-    ports = []
-    if phase3_gnmap_path and os.path.exists(phase3_gnmap_path):
-        ports = get_ports_for_ip(ip, phase3_gnmap_path)
+    # Find all 'Up' hosts first
+    all_up_hosts = set()
+    for match in up_host_pattern.finditer(gnmap_content):
+        all_up_hosts.add(match.group(1))
 
-    if not ports and phase1_gnmap_path and os.path.exists(phase1_gnmap_path):
-        ports = get_ports_for_ip(ip, phase1_gnmap_path)
+    log.debug(f"Found {len(all_up_hosts)} hosts marked 'Up' in Phase 1.")
 
-    port_string = ",".join(ports)
+    # Now check ports for each 'Up' host
+    for ip in all_up_hosts:
+        open_ports = parse_gnmap_ports_for_host(gnmap_content, ip)
 
-    if not port_string:
-        return f"{scan_message_prefix} Skipped - No open ports found in Phase 3 or Phase 1 GNMAP files."
+        if not open_ports:
+            # Host is Up, but no open ports found in the scan results (all closed/filtered)
+            log.debug(f"Filtering host {ip}: No 'open' or 'open|filtered' ports found.")
+            continue # Skip this host
 
-    # Construct Nmap command for Phase 4
-    nmap_command = [
-        'nmap', '-A', '-T4',
-        '--max-retries', '3',
-        '--max-rtt-timeout', '300ms',
-        '--host-timeout', '8m',
-        '-Pn', # Assume host is up based on previous phases
-        '-p', port_string,
+        # Apply ignore_port logic
+        if ignore_port is not None:
+            ignore_port_int = int(ignore_port) # Ensure it's int for comparison
+            if len(open_ports) == 1 and open_ports[0] == ignore_port_int:
+                log.debug(f"Filtering host {ip}: Only ignored port {ignore_port} was open.")
+                continue # Skip this host if only the ignored port is open
+
+        # If we reach here, the host has open ports and is not filtered by ignore_port
+        potentially_live_hosts.add(ip)
+        log.debug(f"Keeping host {ip} for Phase 3 (Ports: {open_ports}).")
+
+    log.info(f"Phase 1 filter complete. Kept {len(potentially_live_hosts)} hosts with relevant open ports.")
+    return potentially_live_hosts
+
+
+def parse_gnmap_all_open_ports(gnmap_content):
+    """Parses .gnmap to find all unique open or open|filtered ports across all hosts."""
+    port_pattern = re.compile(r"(\d+)/(?:open|open\|filtered)")
+    ports = set(port_pattern.findall(gnmap_content))
+    # Return sorted list of integers
+    return sorted([int(p) for p in ports])
+
+
+def run_deep_scan(ip, scan_title_dir,  scan_title, gnmap_content_for_ports):
+    """Task for running the Phase 4 deep scan on a single IP."""
+    output_prefix = scan_title_dir / f"{scan_title}_phase4_DeepScan_HOST_{ip.replace(':', '_')}" # IPv6 safe filename
+    xml_file = output_prefix.with_suffix(".xml")
+
+    # Check if already scanned (using .xml as the primary indicator)
+    if xml_file.exists():
+        # Return a specific status for skipped-existing
+        return ip, "skipped_exists", f"Skipped {ip}: Output exists ({xml_file.name})"
+
+    # Get ports for this specific host from the relevant pre-loaded gnmap content
+    ports_to_scan = parse_gnmap_ports_for_host(gnmap_content_for_ports, ip)
+
+    if not ports_to_scan:
+        # This should theoretically not happen if hosts_for_deep_scan is generated correctly,
+        # but serves as a safeguard.
+        log.warning(f"Deep scan called for {ip} but no open ports found in provided content. Skipping.")
+        return ip, "skipped_no_ports", f"Skipped {ip}: No open ports found in provided source"
+
+    port_str = ",".join(map(str, ports_to_scan))
+    # Status message for starting scan
+    start_msg = f"Starting deep scan on {ip} (Ports: {port_str})"
+    log.info(start_msg) # Log start
+
+    nmap_cmd_base = [
+        "nmap", "-A", "-T4",
+        "--max-retries", "3",
+        "--max-rtt-timeout", "300ms",
+        "--host-timeout", "8m",
+        "-Pn",
+        "-p", port_str,
         ip,
-        '-oA', output_base # Output all formats (Nmap, GNMAP, XML)
+        "-oA", str(output_prefix) # Nmap needs string path
     ]
+    # Add -6 for IPv6 if needed
+    nmap_cmd = ["nmap", "-6"] + nmap_cmd_base[1:] if ':' in ip else nmap_cmd_base
 
-    # Execute Nmap
     try:
-        # print_blue(f"[*] Starting deep scan {ip} -p {port_string}") # Can be noisy with progress bar
-        result = subprocess.run(nmap_command, capture_output=True, text=True, check=False)
+        # Run command without capturing/checking return code here, will rely on logs/output parsing if needed
+        # Let run_command handle logging and exception raising
+        stdout, stderr = run_command(nmap_cmd, cwd=scan_title_dir, check=True, description=f"Deep Scan {ip}")
 
-        if result.returncode == 0:
-            return f"{scan_message_prefix} Scan Successful (Output: {output_base}.*)"
+        # Basic check in stdout/stderr for common issues even if return code is 0
+        if "Note: Host seems down" in stdout or "Failed to resolve" in stdout:
+             log.warning(f"Deep scan for {ip} completed but Nmap noted host seemed down/unresolved.")
+             return ip, "warning_down", f"Completed {ip} with warning (host down?)"
         else:
-            error_details = result.stderr.strip()
-            if not error_details and result.stdout.strip():
-                 error_details = result.stdout.strip().splitlines()[-1]
-            return f"{scan_message_prefix} Scan Failed (Code {result.returncode}). Error: {error_details[:200]}"
+            return ip, "success", f"Completed {ip}"
 
     except FileNotFoundError:
-        return f"{scan_message_prefix} CRITICAL ERROR: 'nmap' command not found." # Should have been caught earlier
+         # Error already logged by run_command
+         return ip, "failed", f"Failed {ip}: Nmap not found"
+    except subprocess.CalledProcessError as e:
+        # Error already logged by run_command
+        return ip, "failed", f"Failed {ip} (Code: {e.returncode})"
     except Exception as e:
-        return f"{scan_message_prefix} Scan Error ({type(e).__name__}: {e})"
+        log.exception(f"Unexpected error during deep scan for {ip}")
+        return ip, "failed", f"Failed {ip} (Error: {type(e).__name__})"
 
-def combine_nmap_xml_python(scan_title):
-    """Combines Nmap XML output files using xml.etree.ElementTree."""
-    output_file = f"{scan_title}_Combined_DeepScan.xml"
-    input_pattern = f"{scan_title}_phase4_DeepScan_HOST_*.xml"
-    input_files = glob.glob(input_pattern)
+# --- Main Execution ---
+def main():
+    # --- Argument Parser ---
+    parser = argparse.ArgumentParser(
+        description="Perform a multi-phase network scan using nmap, applying filters and showing progress.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    # Changed required positional args to optional flags
+    parser.add_argument("-s", "--scan-title", help="A unique name for this scan (used for directory).")
+    parser.add_argument("-L", "--host-list", help="Path to the file containing target IPs.")
 
-    if not input_files:
-        print_yellow(f"Warning: No input XML files found matching '{input_pattern}'. Creating empty combined file.")
-        # Create a minimal valid empty nmaprun file
-        root = ET.Element("nmaprun")
-        ET.SubElement(root, "scaninfo", type="unknown", protocol="unknown", numservices="0", services="")
-        tree = ET.ElementTree(root)
-        try:
-            tree.write(output_file, encoding="utf-8", xml_declaration=True)
-        except Exception as e:
-            print_red(f"Error writing empty combined XML file {output_file}: {e}")
-        return False
+    # Optional args with defaults
+    parser.add_argument("-t", "--top-ports", type=int, default=1000, help="Number of top ports for Phase 1.")
+    parser.add_argument("-i", "--ignore-port", type=int, default=None, metavar='PORT', help="Exclude hosts from Phase 3/4 if only this port is open in Phase 1.")
+    parser.add_argument("--skip-ping-sweep", action="store_true", help="Skip the Phase 2 ping sweep.")
+    parser.add_argument("--phase3", default="-p-",
+                        help="Phase 3 port spec ('-p-', '--top-ports X', 'skip', etc.). Use 'skip' to rely only on Phase 1 ports.")
+    parser.add_argument("-j", "--parallel-scans", type=int, default=35, help="Number of parallel deep scans (Phase 4).") # Reduced default
+    parser.add_argument("-o", "--output-dir", default=".", help="Parent directory for scan results.")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging (DEBUG level).")
+    parser.add_argument("-f", "--force-overwrite", action="store_true", help="Force re-running scans even if output files exist.")
 
-    print_blue(f"[+] Combining {len(input_files)} Nmap XML files into '{output_file}'")
-
-    # Use the first file to establish the root and attributes
-    try:
-        first_tree = ET.parse(input_files[0])
-        combined_root = first_tree.getroot()
-        # Keep scaninfo etc. from the first file, remove its host elements initially
-        hosts_to_keep = [] # We'll add all hosts back
-    except Exception as e:
-        print_red(f"Error parsing first XML file ({input_files[0]}): {e}. Cannot combine.")
-        return False
-
-    # Remove initial host elements before adding all back
-    for host in combined_root.findall('host'):
-         combined_root.remove(host)
-
-    # Iterate through all input files (including the first one again)
-    combined_hosts = 0
-    skipped_files = 0
-    for file in input_files:
-        try:
-            tree = ET.parse(file)
-            root = tree.getroot()
-            # Find host elements that are UP
-            found_in_file = 0
-            for host in root.findall('host'):
-                # Check if host status is 'up'
-                status = host.find('status')
-                if status is not None and status.get('state') == 'up':
-                    combined_root.append(host) # Append the <host> element to the combined root
-                    found_in_file += 1
-            if found_in_file > 0:
-                # print(f"    - Added {found_in_file} host(s) from {file}")
-                combined_hosts += found_in_file
-            else:
-                print_yellow(f"    - No 'up' hosts found in {file}")
-
-        except ET.ParseError as e:
-            print_red(f"    Warning: Skipping invalid XML file {file}: {e}")
-            skipped_files += 1
-        except Exception as e:
-            print_red(f"    Warning: Skipping file {file} due to error: {e}")
-            skipped_files += 1
-
-    # Update runstats if possible (basic example)
-    runstats = combined_root.find('runstats')
-    if runstats is not None:
-        hosts_stats = runstats.find('hosts')
-        if hosts_stats is not None:
-            hosts_stats.set('up', str(combined_hosts))
-            hosts_stats.set('total', str(combined_hosts)) # Or adjust if tracking total processed
-
-    # Write the combined XML tree
-    try:
-        combined_tree = ET.ElementTree(combined_root)
-        combined_tree.write(output_file, encoding="utf-8", xml_declaration=True)
-        print_green(f"Successfully combined {combined_hosts} host records into '{output_file}'.")
-        if skipped_files > 0:
-            print_yellow(f"Skipped {skipped_files} invalid or problematic XML files.")
-        return True
-    except Exception as e:
-        print_red(f"Error writing combined XML file {output_file}: {e}")
-        return False
-
-
-# --- Main Script Logic ---
-if __name__ == "__main__":
-    print(f"Current Directory: {os.getcwd()}")
-    print("Files in current directory:")
-    for item in sorted(os.listdir('.')):
-        print(f"- {item}")
-    print("-" * 20)
+    args = parser.parse_args()
 
     # --- Root Check ---
     try:
-        if os.geteuid() != 0:
-            print_red("This script must be run as root (or with sudo)")
+        if os.name == 'posix' and os.geteuid() != 0:
+            print_red("Error: This script requires root privileges (or sudo) for SYN scans (-sS).")
             sys.exit(1)
-    except AttributeError: # Handle non-POSIX systems like Windows
-        if os.name != 'posix':
-             print_yellow("Warning: Could not check for root privileges on this OS.")
-        else:
-             print_red("Could not determine user privileges. Exiting.")
-             sys.exit(1)
+    except AttributeError: # Handle non-POSIX systems where geteuid doesn't exist
+         print_yellow("Warning: Could not check for root privileges on this OS. SYN scans might fail if not run as administrator/root.")
 
-    # --- User Input ---
-    scan_title = input("Enter a unique scan title (e.g., ProjectX_Q1_Scan): ")
-    host_list_file = input("Enter the path to the host list file: ")
-    # Input validation for topPorts
-    while True:
-        top_ports_str = input("Enter number of --top-ports: ")
-        if top_ports_str.isdigit() and int(top_ports_str) > 0:
-            top_ports = int(top_ports_str)
-            break
-        else:
-            print_red("Please enter a positive integer for --top-ports.")
 
-    ignore_port = input("Enter a port to exclude (if this port is the only live port, scans will be excluded): ")
-    # Validate ignore_port format (optional but good)
-    if ignore_port and not ignore_port.isdigit():
-        print_yellow(f"Warning: Ignoring invalid 'ignore port' value '{ignore_port}'. No port will be ignored.")
-        ignore_port = ""
+    # --- Interactive Prompts (if args missing) ---
+    print_blue("--- Scan Configuration ---")
 
-    # Default value handling for ping sweep
-    ping_sweep_q = input("Skip Ping Sweep? (Y/n): ")
-    skip_ping_sweep = (ping_sweep_q.lower() or 'y') == 'y' # Default to Yes (skip)
-
-    # Default value handling for Phase 3
-    phase3_default = "-p-"
-    print(f"Phase 3 does a complete port discovery (default: {phase3_default}).")
-    print("You can overwrite that here (e.g., -p 1-1000, --top-ports 1000, skip).")
-    phase3_answer = input("Enter Phase 3 port spec or 'skip' [default: uses Phase 1 results]: ")
-    if not phase3_answer: # User pressed Enter
-        phase3_mode = "skip" # Default to skipping if empty input
-        print_yellow("No input for Phase 3, defaulting to 'skip' (using Phase 1 results).")
-    elif phase3_answer.lower() == 'skip':
-        phase3_mode = "skip"
+    # Scan Title (Required)
+    if args.scan_title is None:
+        args.scan_title = prompt_user(
+            "Enter a unique scan title (e.g., ProjectX_Q1_Scan). This should be an existing directory containing the target list: ",
+            validation_func=is_not_empty,
+            error_msg="Scan title cannot be empty."
+        )
     else:
-        phase3_mode = phase3_answer # Use user's custom spec (e.g., "-p-", "--top-ports 1000")
-
-    # Input validation for parallel scans
-    while True:
-        how_many_parallel_str = input("How many parallel scans should we run in phase4? ")
-        if how_many_parallel_str.isdigit() and int(how_many_parallel_str) > 0:
-            how_many_parallel = int(how_many_parallel_str)
-            break
-        else:
-            print_red("Please enter a positive integer for parallel scans.")
-
-    # --- Input Validation ---
-    if not scan_title:
-      print_red("Error: Scan title cannot be empty.")
-      sys.exit(1)
-    if not os.path.isfile(host_list_file):
-      print_red(f"Error: Host list file '{host_list_file}' not found.")
-      sys.exit(1)
-
-    # Define standard filenames
-    phase1_base = f"{scan_title}_phase1_Top{top_ports}Ports"
-    phase1_gnmap = f"{phase1_base}.gnmap"
-    phase2_base = f"{scan_title}_phase2_PingSweep"
-    phase2_gnmap = f"{phase2_base}.gnmap"
-    phase3_base = f"{scan_title}_phase3_Port_Disco"
-    phase3_gnmap = f"{phase3_base}.gnmap"
-    live_hosts_temp_file = f"{scan_title}_live_hosts.txt" # Temp file before unique sort
-    live_hosts_final_file = f"{scan_title}_live_hosts_final.txt" # Final unique sorted list
-    open_ports_file = f"{scan_title}_open_ports.txt"
+         print(f"Using Scan Title from argument: {args.scan_title}")
 
 
-    clear_screen()
-    print_yellow(f"--- Starting Scan: {scan_title} ---")
-    print_yellow(f"--- Using Host List: {host_list_file} ---")
-    print_yellow(f"--- Top Ports (Phase 1): {top_ports} ---")
-    print_yellow(f"--- Ignore Port (if only port): {ignore_port or 'None'} ---")
-    print_yellow(f"--- Skip Ping Sweep (Phase 2): {'Yes' if skip_ping_sweep else 'No'} ---")
-    print_yellow(f"--- Phase 3 Mode: {phase3_mode} ---")
-    print_yellow(f"--- Parallel Scans (Phase 4): {how_many_parallel} ---")
-    print("-" * 20)
+    # Host List File (Required)
+    if args.host_list is None:
+        args.host_list = prompt_user(
+            "Enter the path to the host list file",
+            validation_func=is_valid_path,
+            error_msg="Host list file not found or is not a file."
+        )
+    else:
+         # Validate the provided argument path as well
+         if not is_valid_path(args.host_list):
+              print_red(f"Error: Host list file from argument not found: {args.host_list}")
+              # Prompt user again if argument path is invalid
+              args.host_list = prompt_user(
+                    "Re-enter the path to the host list file",
+                    validation_func=is_valid_path,
+                    error_msg="Host list file not found or is not a file."
+                )
+         else:
+              print(f"Using Host List from argument: {args.host_list}")
 
-    # --- Phase 1: Discovery (SYN Scan, Top X, No Ping) ---
-    nmap_phase1_args = [
-        'nmap', '-sS', '-T4', '--max-retries', '1', '--max-rtt-timeout', '300ms',
-        '--host-timeout', '3m', '--max-scan-delay', '5', '--min-rate', '800',
-        '-Pn', '-n',
-        '-iL', host_list_file,
-        '--top-ports', str(top_ports),
-        '-oA', phase1_base
-    ]
-    if not run_nmap_command(nmap_phase1_args, f"Phase 1: Discovery Scan (Top {top_ports} Ports, No Ping)"):
-        print_red("Phase 1 failed. Exiting.")
-        sys.exit(1)
+    # Convert host_list to Path object after getting/validating it
+    host_file = Path(args.host_list)
 
-    # --- Extract Live Hosts (From Phase 1) ---
-    print_blue("[+] Extracting Live Hosts found in Phase 1")
-    phase1_live_hosts = parse_gnmap_for_live_hosts(phase1_gnmap, ignore_port)
-    if phase1_live_hosts:
-        print_green(f"    Found {len(phase1_live_hosts)} potential live hosts in Phase 1.")
+    # Top Ports (Optional with default)
+    args.top_ports = prompt_user(
+        f"Enter number of --top-ports for Phase 1",
+        default=args.top_ports, # Use default from argparse
+        validation_func=is_positive_int,
+        error_msg="Please enter a positive integer for top ports."
+    )
+
+    # Ignore Port (Optional, can be None)
+    # Need careful handling as default is None
+    ignore_port_input = input(f"Enter a port to exclude (leave blank for none) [{args.ignore_port if args.ignore_port is not None else 'None'}]: ").strip()
+    if ignore_port_input:
         try:
-            # Overwrite the temp file initially
-            with open(live_hosts_temp_file, 'w') as f:
-                for ip in sorted(phase1_live_hosts):
-                    f.write(ip + '\n')
-        except Exception as e:
-            print_red(f"    Error writing Phase 1 live hosts to {live_hosts_temp_file}: {e}")
-    else:
-        print_yellow(f"    No live hosts found in Phase 1 (or all had only ignored port {ignore_port}).")
-        # Create empty temp file to avoid errors later if Phase 2 is skipped
-        open(live_hosts_temp_file, 'w').close()
+            args.ignore_port = int(ignore_port_input)
+            if args.ignore_port < 1 or args.ignore_port > 65535:
+                 print_red("Invalid port number. Ignoring exclusion.")
+                 args.ignore_port = None
+        except ValueError:
+            print_red("Invalid input for ignore port. Ignoring exclusion.")
+            args.ignore_port = None
+    # If input was blank, args.ignore_port keeps its original value (None from argparse default)
+
+    # Ping Sweep (Boolean)
+    # Default is False unless --skip-ping-sweep is given
+    ping_sweep_prompt_default = 'N' if not args.skip_ping_sweep else 'Y'
+    skip_ping_input = prompt_user(
+        "Skip Ping Sweep? (Y/n)",
+        default=ping_sweep_prompt_default,
+        validation_func=is_yes_no,
+        error_msg="Please enter Y or N."
+    )
+    args.skip_ping_sweep = skip_ping_input.lower().startswith('y')
 
 
-    # --- Phase 2: Ping Sweep (Optional) ---
-    if not skip_ping_sweep:
-        nmap_phase2_args = [
-            'nmap', '-sn', '-T4', '--max-retries', '1', '--max-rtt-timeout', '300ms',
-            '--host-timeout', '5m', '-n',
-            '-iL', host_list_file,
-            '-oA', phase2_base
-        ]
-        if run_nmap_command(nmap_phase2_args, "Phase 2: Ping Sweep on original list"):
-            # Extract live hosts from Phase 2 and APPEND to temp file
-            print_blue("[+] Extracting Live Hosts found in Phase 2")
-            phase2_live_hosts = []
-            try:
-                 with open(phase2_gnmap, 'r') as f:
-                     for line in f:
-                         # Simple grep "Host: IP (Hostname) Status: Up"
-                         if "Status: Up" in line and line.startswith("Host:"):
-                             match = re.match(r"Host:\s+(\S+)", line)
-                             if match:
-                                 phase2_live_hosts.append(match.group(1))
-                 if phase2_live_hosts:
-                     print_green(f"    Found {len(phase2_live_hosts)} hosts responding to ping in Phase 2.")
-                     try:
-                         # Append Phase 2 hosts to the temp file
-                         with open(live_hosts_temp_file, 'a') as f:
-                             for ip in sorted(list(set(phase2_live_hosts))): # Ensure uniqueness before appending
-                                 f.write(ip + '\n')
-                     except Exception as e:
-                         print_red(f"    Error appending Phase 2 live hosts to {live_hosts_temp_file}: {e}")
-                 else:
-                     print_yellow("    No hosts responded to ping in Phase 2.")
-            except FileNotFoundError:
-                 print_yellow(f"    Warning: Phase 2 GNMAP file {phase2_gnmap} not found for parsing.")
-            except Exception as e:
-                 print_red(f"    Error parsing Phase 2 GNMAP file {phase2_gnmap}: {e}")
-    else:
-        print_yellow("[+] Skipping Phase 2 Ping Sweep as requested.")
+    # Phase 3 Options (Optional with default)
+    print(f"Phase 3 defines port discovery on live hosts.")
+    print_yellow("Note: Phase 3 will only target hosts that had open ports discovered in Phase 1/2.")
+    print(f"Options: '-p-' (all), '--top-ports X', 'T:1-65535', 'skip' (use Phase 1).")
+    print_yellow("Warning: '-p-' can be very slow. 'skip' or '--top-ports' recommended.")
+    args.phase3 = prompt_user(
+        f"Enter Phase 3 port specification",
+        default=args.phase3, # Use default from argparse
+        validation_func=is_valid_phase3, # Basic check
+        error_msg="Phase 3 specification cannot be empty (use 'skip' if intended)."
+    )
 
-    # --- Consolidate and Finalize Live Hosts ---
-    print_blue("[+] Consolidating and saving final list of unique live hosts")
-    final_live_hosts = set()
+    # Parallel Scans (Optional with default)
+    args.parallel_scans = prompt_user(
+        f"How many parallel scans should run in Phase 4?",
+        default=args.parallel_scans, # Use default from argparse
+        validation_func=is_positive_int,
+        error_msg="Please enter a positive integer for parallel scans."
+    )
+
+    # Output Directory
+    print(f"Output directory base: {args.output_dir}")
+
+    # --- Setup Output Directory ---
+    base_output_dir = Path(args.output_dir)
+    scan_title_dir = base_output_dir / args.scan_title
     try:
-        if os.path.exists(live_hosts_temp_file):
-            with open(live_hosts_temp_file, 'r') as f:
-                for line in f:
-                    ip = line.strip()
-                    if ip: # Basic validation: non-empty line
-                       # Add more robust IP validation here if needed (e.g., using ipaddress module)
-                       final_live_hosts.add(ip)
-            # Sort and write to the final file
-            sorted_live_hosts = sorted(list(final_live_hosts))
-            with open(live_hosts_final_file, 'w') as f:
-                 for ip in sorted_live_hosts:
-                     f.write(ip + '\n')
-
-            if sorted_live_hosts:
-                 print_green(f"[+] Final unique live hosts ({len(sorted_live_hosts)}) saved to {live_hosts_final_file}")
-            else:
-                 print_red(f"[!] Warning: No live hosts found in total from Phases 1 & 2.")
-                 print_red("    Cannot proceed with Phase 3 or 4 without live hosts.")
-                 # Optionally clean up temp file: os.remove(live_hosts_temp_file)
-                 sys.exit(1) # Exit if no hosts found
-
-            # Clean up the temporary file
-            os.remove(live_hosts_temp_file)
-
-        else:
-             print_red("[!] Error: Temporary live hosts file not found after Phases 1 & 2.")
-             sys.exit(1)
-
-    except Exception as e:
-        print_red(f"Error processing live hosts file: {e}")
+        scan_title_dir.mkdir(parents=True, exist_ok=True)
+        # Use print here, before logging is configured
+        print(f"{Fore.BLUE}Output directory: {scan_title_dir.resolve()}{Style.RESET_ALL}")
+    except OSError as e:
+        print_red(f"Error creating output directory {scan_title_dir}: {e}")
         sys.exit(1)
 
-    # --- Phase 3: Discover all ports (or skip) ---
-    phase3_completed = False
-    if phase3_mode == "skip":
-        print_blue("[+] Phase 3: Skipping port discovery, using Phase 1 results.")
-        try:
-            if os.path.exists(phase1_gnmap):
-                 shutil.copy2(phase1_gnmap, phase3_gnmap) # Use copy2 to preserve metadata
-                 # Append note
-                 with open(phase3_gnmap, 'a') as f:
-                     f.write("\n# Phase 3 skipped, results copied from Phase 1.\n")
-                 print_green(f"    Copied {phase1_gnmap} to {phase3_gnmap}")
-                 phase3_completed = True
-            else:
-                 print_red(f"    Error: Cannot skip Phase 3 because Phase 1 GNMAP file ({phase1_gnmap}) not found!")
-                 # Decide if you want to exit or try to proceed without Phase 3 results
-                 sys.exit(1)
-        except Exception as e:
-            print_red(f"    Error copying Phase 1 results for skipped Phase 3: {e}")
-            sys.exit(1) # Exit if copy fails
-    else:
-        # Run Phase 3 Nmap scan using user's port spec
-        print_blue(f"[+] Phase 3: Starting Port Discovery Scan on {len(sorted_live_hosts)} Live Hosts ({phase3_mode})")
-        nmap_phase3_base_args = [
-            'nmap', '-sS', '-Pn', '-n', '-T4', '--max-retries', '2',
-            '--max-rtt-timeout', '300ms', '--host-timeout', '15m',
-            '--max-scan-delay', '5', '--min-rate', '800',
-            '-iL', live_hosts_final_file
-            # Add port spec based on phase3_mode
-        ]
-        # Split user input like "-p 1-100,--top-ports 10" correctly for subprocess
-        if phase3_mode.startswith('-p') or phase3_mode.startswith('--'):
-             # Handle simple cases like '-p-' or '--top-ports 100'
-             # More complex splitting might be needed for combined args
-             parts = phase3_mode.split(maxsplit=1)
-             nmap_phase3_base_args.extend(parts)
-        else:
-             print_red(f"    Warning: Unrecognized Phase 3 port spec format '{phase3_mode}'. Using default '-p-'.")
-             nmap_phase3_base_args.append('-p-') # Fallback to all ports
+    # --- <<< CONFIGURE LOGGING >>> ---
+    log_file = scan_title_dir / f"{args.scan_title}_scan.log"
+    log_level = logging.DEBUG if args.verbose else logging.INFO
+    log_format = '%(asctime)s - %(levelname)s - [%(name)s] - %(message)s' # Format for the file
 
-        nmap_phase3_base_args.extend(['-oA', phase3_base])
+    logging.basicConfig(
+        level=log_level,        # Set level (DEBUG or INFO)
+        format=log_format,      # Use defined format
+        filename=log_file,      # <<< Log to this file >>>
+        filemode='a',           # Append ('w' would overwrite)
+        force=True              # <<< Important: Ensures this config applies even if logging was used before
+    )
 
-        if run_nmap_command(nmap_phase3_base_args, f"Phase 3: Port Discovery Scan ({phase3_mode})"):
-             phase3_completed = True
-        else:
-             print_red("    Phase 3 Nmap scan failed. Will attempt Phase 4 using Phase 1 ports if available.")
-             # No exit here, Phase 4 logic will handle fallback
+    global log
+    log = logging.getLogger("bulkScan")
 
-    # --- Extract Open Ports (From Phase 3 Results if available) ---
-    if phase3_completed:
-        print_blue("[+] Extracting All Unique Open Ports discovered")
-        all_open_ports = parse_gnmap_for_all_open_ports(phase3_gnmap)
-        if all_open_ports:
-            print_green(f"    Found {len(all_open_ports)} unique open ports across all scanned hosts.")
-            open_ports_str = ",".join(map(str, all_open_ports)) # Join with commas
+    # You can now use log.info(), log.debug() etc. They will write to the file.
+    log.info(f"--- Logging started. Level: {logging.getLevelName(log_level)}. Output File: {log_file} ---")
+
+    # --- Change Directory and Start Scan ---
+    original_cwd = Path.cwd()
+    try:
+        os.chdir(scan_title_dir)
+        current_scan_dir = Path(".") # Use relative path now
+        log.info(f"Changed working directory to: {current_scan_dir.resolve()}")
+
+        print_yellow(f"\n--- Starting Scan: {args.scan_title} ---")
+        print_yellow(f"--- Target List: {host_file.resolve()} ---")
+        print_yellow(f"--- Output Dir: {current_scan_dir.resolve()} ---")
+        print_yellow(f"--- Phase 1 Ports: {args.top_ports} ---")
+        print_yellow(f"--- Ignore Port Filter: {args.ignore_port if args.ignore_port is not None else 'None'} ---")
+        print_yellow(f"--- Skip Ping Sweep: {'Yes' if args.skip_ping_sweep else 'No'} ---")
+        print_yellow(f"--- Phase 3 Spec: {args.phase3} ---")
+        print_yellow(f"--- Phase 4 Parallelism: {args.parallel_scans} ---")
+        print_yellow(f"--- Force Overwrite: {'Yes' if args.force_overwrite else 'No'} ---")
+        time.sleep(1) 
+
+        # Define file paths relative to current_scan_dir
+        phase1_output_prefix = f"{args.scan_title}_phase1_Top{args.top_ports}Ports"
+        phase1_gnmap_path = current_scan_dir / f"{phase1_output_prefix}.gnmap"
+        phase1_xml_path = current_scan_dir / f"{phase1_output_prefix}.xml" # Check XML for completion too
+
+        phase2_output_prefix = f"{args.scan_title}_phase2_PingSweep"
+        phase2_gnmap_path = current_scan_dir / f"{phase2_output_prefix}.gnmap"
+
+        phase3_output_prefix = f"{args.scan_title}_phase3_Port_Disco"
+        phase3_gnmap_path = current_scan_dir / f"{phase3_output_prefix}.gnmap"
+        phase3_xml_path = current_scan_dir / f"{phase3_output_prefix}.xml"
+
+        live_hosts_file = current_scan_dir / f"{args.scan_title}_phase3_target_hosts.txt" # Renamed for clarity
+        open_ports_file = current_scan_dir / f"{args.scan_title}_all_open_ports.txt"
+        hosts_for_deep_scan_file = current_scan_dir / f"{args.scan_title}_phase4_target_hosts.txt" # Hosts actually getting deep scan
+
+        # --- Phase 1: Discovery ---
+        phase1_content = None
+        if not args.force_overwrite and phase1_xml_path.exists(): # Check XML as indicator of completion
+            print_purple(f"[*] Skipping Phase 1: Output file {phase1_xml_path.name} already exists.")
             try:
-                with open(open_ports_file, 'w') as f:
-                    f.write(open_ports_str + '\n') # Write comma-separated string
-                print_green(f"    All open ports saved (comma-separated) to {open_ports_file}")
+                 phase1_content = phase1_gnmap_path.read_text() # Still need content if exists
+                 log.info(f"Read existing Phase 1 GNMAP content from {phase1_gnmap_path.name}")
             except Exception as e:
-                 print_red(f"    Error writing open ports list to {open_ports_file}: {e}")
+                 print_red(f"[!] Error reading existing Phase 1 gnmap file: {e}. Cannot apply filters.")
+                 # Decide if this is fatal, maybe exit?
+                 sys.exit(1)
         else:
-            print_yellow(f"    Warning: No open ports found in {phase3_gnmap}.")
-            # Create empty file? Or just note that it's empty.
-            open(open_ports_file, 'w').close()
-    else:
-         print_yellow("[+] Skipping extraction of open ports as Phase 3 did not complete successfully or was skipped.")
-         # Ensure the open ports file is empty if Phase 3 failed/skipped and Phase 1 ports are used as fallback in Phase 4
-         open(open_ports_file, 'w').close()
+            phase1_cmd = [
+                "nmap", "-sS", "-T4",
+                "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "3m",
+                "--max-scan-delay", "5ms", "--min-rate", "800", # Adjusted delay
+                "-Pn", "-n",
+                "-iL", str(host_file.resolve()),
+                "--top-ports", str(args.top_ports),
+                "-oA", phase1_output_prefix
+            ]
+            try:
+                # Let run_command handle printing status
+                run_command(phase1_cmd, description=f"Phase 1: Discovery Scan (Top {args.top_ports} Ports, No Ping)")
+                # Read content after successful run
+                if phase1_gnmap_path.exists():
+                     phase1_content = phase1_gnmap_path.read_text()
+                else:
+                     print_red("[!] Phase 1 completed but GNMAP output not found!")
+                     sys.exit(1)
+            except (subprocess.CalledProcessError, FileNotFoundError, Exception) as e:
+                print_red(f"[!] Phase 1 failed: {e}")
+                sys.exit(1)
+
+        if phase1_content is None:
+            print_red("[!] Critical: Could not obtain Phase 1 GNMAP content. Exiting.")
+            sys.exit(1)
+
+        # --- Apply Phase 1 Filtering ---
+        print_blue("[+] Applying Phase 1 Filter (Keep hosts with open ports, excluding ignore-port-only)")
+        phase1_hosts_passed_filter = parse_gnmap_filter_no_open(phase1_content, args.ignore_port)
+        print_green(f"    {len(phase1_hosts_passed_filter)} hosts passed Phase 1 filtering.")
 
 
-    # --- Phase 4: Deep Scan (Parallel) ---
-    print_blue(f"\n[+] Phase 4: Starting Deep Scan on {len(sorted_live_hosts)} Live Hosts (Parallelism: {how_many_parallel})")
-    if not sorted_live_hosts:
-         print_red("    Cannot start Phase 4: No live hosts identified.")
-    else:
-         tasks = []
-         results = []
-         completed_count = 0
-         total_tasks = len(sorted_live_hosts)
+        # --- Phase 2: Ping Sweep ---
+        phase2_hosts = set()
+        if not args.skip_ping_sweep:
+            phase2_gnmap_content = None
+            if not args.force_overwrite and phase2_gnmap_path.exists():
+                print_purple(f"[*] Skipping Phase 2 Scan: Output file {phase2_gnmap_path.name} already exists.")
+                try:
+                    phase2_gnmap_content = phase2_gnmap_path.read_text()
+                except Exception as e:
+                     print_red(f"[!] Error reading existing Phase 2 gnmap file: {e}")
+            else:
+                phase2_cmd = [
+                    "nmap", "-sn", "-T4",
+                    "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "5m",
+                    "-n",
+                    "-iL", str(host_file.resolve()),
+                    "-oA", phase2_output_prefix
+                ]
+                try:
+                    run_command(phase2_cmd, description="Phase 2: Ping Sweep")
+                    if phase2_gnmap_path.exists():
+                         phase2_gnmap_content = phase2_gnmap_path.read_text()
+                    else:
+                         print_yellow("[!] Phase 2 ran but output GNMAP not found.")
+                except (subprocess.CalledProcessError, FileNotFoundError, Exception) as e:
+                    print_red(f"[!] Phase 2 failed: {e}") # Non-fatal
 
-         # Determine phase 1 gnmap path for fallback
-         phase1_gnmap_for_p4 = phase1_gnmap if os.path.exists(phase1_gnmap) else None
-         phase3_gnmap_for_p4 = phase3_gnmap if os.path.exists(phase3_gnmap) else None # Check existence
-
-
-         with ProcessPoolExecutor(max_workers=how_many_parallel) as executor:
-             print_blue(f"    Submitting {total_tasks} deep scan jobs...")
-             # Submit tasks
-             for ip in sorted_live_hosts:
-                  # Pass necessary paths to the worker
-                  future = executor.submit(run_deep_scan_worker, ip, scan_title, phase3_gnmap_for_p4, phase1_gnmap_for_p4)
-                  tasks.append(future)
-
-             print_blue("    Waiting for scans to complete...")
-             if total_tasks > 0:
-                 print(f"\r    Progress: 0.0% (0/{total_tasks})", end='', flush=True)
-
-             # Process results as they complete
-             for future in as_completed(tasks):
-                 completed_count += 1
-                 percentage = (completed_count / total_tasks) * 100 if total_tasks > 0 else 100
-                 progress_string = f"Progress: {percentage:.1f}% ({completed_count}/{total_tasks})"
-
+            # Parse content if available
+            if phase2_gnmap_content:
                  try:
-                     result_message = future.result()
-                     results.append(result_message)
-                     # Print progress update
-                     print(f"\r    {progress_string:<60}", end='', flush=True)
+                     phase2_hosts = parse_gnmap_live_hosts(phase2_gnmap_content)
+                     print_green(f"    Extracted {len(phase2_hosts)} hosts marked 'Up' from Phase 2 results.")
+                 except Exception as e:
+                     print_red(f"[!] Error parsing Phase 2 gnmap content: {e}")
+            else:
+                log.info("No Phase 2 gnmap content to parse.")
 
-                     # Print errors/skips on new lines
-                     if "Failed" in result_message or "Error" in result_message:
-                         print()
-                         print_red(f"    {result_message}")
-                         print(f"\r    {progress_string:<60}", end='', flush=True) # Reprint progress
-                     elif "Skipped - Output file" in result_message:
-                          print()
-                          print_purple(f"    {result_message}")
-                          print(f"\r    {progress_string:<60}", end='', flush=True) # Reprint progress
-                     elif "Skipped - No open ports" in result_message:
-                          print()
-                          print_yellow(f"    {result_message}")
-                          print(f"\r    {progress_string:<60}", end='', flush=True) # Reprint progress
+        else:
+            print_yellow("[+] Skipping Phase 2 Ping Sweep.")
 
 
-                 except Exception as exc:
-                     # Handle exceptions from the future/worker process itself
-                     completed_count += 1 # Still counts as completed task, albeit failed
-                     percentage = (completed_count / total_tasks) * 100 if total_tasks > 0 else 100
-                     progress_string = f"Progress: {percentage:.1f}% ({completed_count}/{total_tasks})"
-                     print()
-                     print_red(f'\n    CRITICAL TASK FAILURE (IP processing might have crashed): {exc}')
-                     results.append(f"Task Error: {exc}")
-                     print(f"\r    {progress_string:<60}", end='', flush=True)
+        # --- Determine Final Host List for Phase 3 ---
+        print_blue("[+] Combining Filtered Phase 1 and Phase 2 Hosts for Phase 3 Targeting")
+        # Combine hosts that passed the P1 filter with any hosts found live in P2
+        final_hosts_for_phase3 = sorted(list(phase1_hosts_passed_filter.union(phase2_hosts)))
 
-             print() # Final newline after loop finishes
-             print_green("[+] Phase 4 Deep Scan complete.")
+        if final_hosts_for_phase3:
+            try:
+                with open(live_hosts_file, "w") as f:
+                    for host in final_hosts_for_phase3:
+                        f.write(host + "\n")
+                print_green(f"[+] {len(final_hosts_for_phase3)} hosts targeted for Phase 3 saved to {live_hosts_file.name}")
+            except IOError as e:
+                print_red(f"Error writing Phase 3 target hosts file {live_hosts_file.name}: {e}")
+                sys.exit(1)
+        else:
+            print_red("[!] Warning: No hosts remaining after filtering and ping sweep. Skipping Phase 3 & 4.")
+            # No need to exit here, subsequent phases will check list length
 
 
-    # --- Combine XML Results (Optional) ---
-    print_blue("\n[+] Attempting to Combine Phase 4 XML Results")
-    combine_nmap_xml_python(scan_title)
-    print_yellow("\nReminder: For advanced analysis, consider dedicated tools like 'nmap-to-sqlite'.")
-    # Example: print_yellow("# for file in *.xml; do python3 nmap-to-sqlite.py \"$file\"; done")
+        # --- Phase 3: Port Discovery ---
+        phase3_completed = False
+        phase3_content = None # To store content if scan runs or exists
+        if not final_hosts_for_phase3:
+            print_red("[!] Skipping Phase 3: No target hosts.")
+        elif args.phase3.lower() == 'skip':
+            print_blue("[+] Phase 3: Skipped by user request.")
+            print_yellow("    Phase 4 will rely on Phase 1 results for port lists.")
+            # No file copy needed, logic below handles fallback
+            phase3_completed = False # Explicitly false if skipped
+        else:
+            if not args.force_overwrite and phase3_xml_path.exists():
+                 print_purple(f"[*] Skipping Phase 3 Scan: Output file {phase3_xml_path.name} already exists.")
+                 phase3_completed = True
+                 try:
+                      phase3_content = phase3_gnmap_path.read_text()
+                 except Exception as e:
+                      print_red(f"[!] Error reading existing Phase 3 gnmap file: {e}")
+                      phase3_completed = False # Cannot use if unreadable
+            else:
+                try:
+                     phase3_nmap_opts = shlex.split(args.phase3)
+                except ValueError as e:
+                     print_red(f"Error parsing Phase 3 options '{args.phase3}': {e}. Defaulting to '-p-'.")
+                     phase3_nmap_opts = ["-p-"]
 
-    print_blue(f"\n--- Scan {scan_title} Complete ---")
+                phase3_cmd_base = [
+                    "nmap", "-sS", "-Pn", "-n", "-T4",
+                    "--max-retries", "2", "--max-rtt-timeout", "500ms",
+                    "--host-timeout", "15m",
+                    "--max-scan-delay", "5ms", "--min-rate", "800",
+                    "-iL", str(live_hosts_file.resolve()), # Use absolute path to be safe
+                ]
+                phase3_cmd_base.extend(phase3_nmap_opts)
+                phase3_cmd_base.extend(["-oA", phase3_output_prefix])
+
+                # Add -6 if needed
+                phase3_cmd = ["nmap", "-6"] + phase3_cmd_base[1:] if any(':' in ip for ip in final_hosts_for_phase3) else phase3_cmd_base
+
+
+                try:
+                    # Pass description to run_command
+                    run_command(phase3_cmd, description=f"Phase 3: Port Discovery Scan ({args.phase3}) on {len(final_hosts_for_phase3)} Hosts")
+                    phase3_completed = True
+                    # Read content after successful run
+                    if phase3_gnmap_path.exists():
+                         phase3_content = phase3_gnmap_path.read_text()
+                    else:
+                         print_red("[!] Phase 3 completed but GNMAP output not found!")
+                         phase3_completed = False # Cannot use if missing
+                except (subprocess.CalledProcessError, FileNotFoundError, Exception) as e:
+                    print_red(f"[!] Phase 3 failed: {e}")
+                    phase3_completed = False
+
+        # --- Extract All Unique Open Ports (Overall Summary) ---
+        # This is just for the summary file, not for targeting Phase 4
+        open_ports_list = []
+        gnmap_for_overall_ports_path = None
+        source_desc = "None"
+
+        if phase3_completed and phase3_content:
+            gnmap_for_overall_ports_path = phase3_gnmap_path
+            source_desc = "Phase 3"
+        elif phase1_content: # Fallback to Phase 1 if Phase 3 skipped/failed
+             gnmap_for_overall_ports_path = phase1_gnmap_path
+             source_desc = "Phase 1"
+
+        if gnmap_for_overall_ports_path:
+            print_blue(f"[+] Extracting All Unique Open Ports found in {source_desc} results")
+            try:
+                # Read content again in case it was from an existing file
+                content_to_parse = gnmap_for_overall_ports_path.read_text()
+                open_ports_list = parse_gnmap_all_open_ports(content_to_parse)
+            except Exception as e:
+                print_red(f"[!] Error parsing {gnmap_for_overall_ports_path.name} for overall ports: {e}")
+
+        if open_ports_list:
+            try:
+                port_str = ",".join(map(str, open_ports_list))
+                open_ports_file.write_text(port_str + "\n")
+                print_green(f"    All unique open ports ({len(open_ports_list)}) from {source_desc} saved to {open_ports_file.name}")
+            except IOError as e:
+                print_red(f"Error writing open ports file {open_ports_file.name}: {e}")
+        else:
+            print_yellow(f"[!] Warning: No overall open ports found in {source_desc} scan results.")
+
+
+        # --- Determine Hosts and Content for Deep Scan (Phase 4) ---
+        hosts_for_deep_scan = []
+        gnmap_content_for_deep_scan_ports = None
+        source_desc_p4 = "None"
+
+        # Prioritize Phase 3 results if available and successful
+        if phase3_completed and phase3_content:
+             gnmap_content_for_deep_scan_ports = phase3_content
+             source_desc_p4 = "Phase 3"
+             print_blue("[+] Using Phase 3 results to determine ports for Deep Scan.")
+        elif phase1_content: # Fallback to Phase 1 content
+             gnmap_content_for_deep_scan_ports = phase1_content
+             source_desc_p4 = "Phase 1"
+             print_yellow("[!] Phase 3 skipped or failed. Using Phase 1 results to determine ports for Deep Scan.")
+        else:
+             print_red("[!] No usable .gnmap content found from Phase 1 or 3. Cannot determine ports for Deep Scan.")
+
+        # Populate hosts_for_deep_scan list using the chosen content
+        if gnmap_content_for_deep_scan_ports and final_hosts_for_phase3:
+             print_blue(f"[+] Identifying hosts from Phase 3 target list ({len(final_hosts_for_phase3)}) with open ports in {source_desc_p4} results.")
+             count_with_ports = 0
+             for ip in final_hosts_for_phase3:
+                  # Check if this host has open ports in the selected source content
+                  # Note: ignore_port filter was already applied when creating phase1_hosts_passed_filter
+                  ports = parse_gnmap_ports_for_host(gnmap_content_for_deep_scan_ports, ip)
+                  if ports:
+                       hosts_for_deep_scan.append(ip)
+                       count_with_ports += 1
+                       log.debug(f"Host {ip} has open ports in {source_desc_p4}, adding to Phase 4 list.")
+                  else:
+                       log.debug(f"Host {ip} (targeted for P3) has no open ports listed in {source_desc_p4}. Skipping Phase 4.")
+
+             print_green(f"    Found {count_with_ports} hosts with open ports in {source_desc_p4} results for Phase 4.")
+
+             if hosts_for_deep_scan:
+                 try:
+                     with open(hosts_for_deep_scan_file, "w") as f:
+                         for host in hosts_for_deep_scan: # Already sorted from final_hosts_for_phase3
+                             f.write(host + "\n")
+                     print_green(f"    Phase 4 target list saved to {hosts_for_deep_scan_file.name}")
+                 except IOError as e:
+                     print_red(f"Error writing Phase 4 target hosts file {hosts_for_deep_scan_file.name}: {e}")
+             else:
+                 print_red("[!] No hosts found with open ports for the deep scan phase after checking relevant results.")
+
+
+        # --- Phase 4: Deep Scan ---
+        if not hosts_for_deep_scan:
+            print_red("[!] Skipping Phase 4: No target hosts with open ports identified.")
+        elif gnmap_content_for_deep_scan_ports is None:
+             print_red("[!] Skipping Phase 4: Missing GNMAP content to determine ports.")
+        else:
+            print_blue(f"\n[+] Phase 4: Starting Deep Scan on {len(hosts_for_deep_scan)} Hosts (using {args.parallel_scans} parallel threads)")
+
+            # Use partial to pass fixed arguments to the worker function
+            scan_func = partial(run_deep_scan,
+                                scan_title_dir=current_scan_dir,
+                                scan_title=args.scan_title,
+                                gnmap_content_for_ports=gnmap_content_for_deep_scan_ports)
+
+            results_summary = {'success': 0, 'skipped_exists': 0, 'skipped_no_ports': 0, 'warning_down': 0, 'failed': 0}
+            completed_count = 0
+            total_tasks = len(hosts_for_deep_scan)
+
+            # Add start time
+            phase4_start_time = time.time()
+
+            with ThreadPoolExecutor(max_workers=args.parallel_scans) as executor:
+                futures = {executor.submit(scan_func, ip): ip for ip in hosts_for_deep_scan}
+
+                # Progress bar setup
+                progress_bar_length = 50
+                sys.stdout.write(f"    Progress: [{ ' ' * progress_bar_length }] 0% (0/{total_tasks})")
+                sys.stdout.flush()
+
+                for future in as_completed(futures):
+                    ip = futures[future]
+                    completed_count += 1
+                    percentage = (completed_count / total_tasks) * 100
+                    filled_length = int(progress_bar_length * completed_count // total_tasks)
+                    bar = '#' * filled_length + ' ' * (progress_bar_length - filled_length)
+
+                    # Calculate elapsed time and ETA
+                    elapsed_time = time.time() - phase4_start_time
+                    est_total_time = (elapsed_time / completed_count) * total_tasks if completed_count > 0 else 0
+                    eta = est_total_time - elapsed_time
+                    eta_str = f" ETA: {int(eta // 60)}m{int(eta % 60)}s" if eta > 0 else ""
+
+
+                    # Update progress bar
+                    progress_string = f"Progress: [{bar}] {percentage:.1f}% ({completed_count}/{total_tasks}){eta_str}"
+                    sys.stdout.write(f"\r    {progress_string} ") # Overwrite previous progress line
+                    sys.stdout.flush()
+
+
+                    try:
+                        target_ip, status_code, message = future.result()
+
+                        # Update summary based on status code
+                        if status_code in results_summary:
+                             results_summary[status_code] += 1
+                        else:
+                             log.warning(f"Unknown status code from deep scan worker: {status_code}")
+                             results_summary['failed'] += 1 # Count unknowns as failed
+
+                        # Print status messages for non-success cases immediately
+                        if status_code == "skipped_exists":
+                             # Use \r to potentially overwrite ETA part of progress line
+                             sys.stdout.write(f"\r    {progress_string} - {Fore.MAGENTA}Skipped (Exists): {target_ip}{Style.RESET_ALL}\n")
+                             # Reprint progress bar on next line to keep it visible
+                             sys.stdout.write(f"    {progress_string} ")
+                             sys.stdout.flush()
+                        elif status_code == "skipped_no_ports":
+                             sys.stdout.write(f"\r    {progress_string} - {Fore.YELLOW}Skipped (No Ports): {target_ip}{Style.RESET_ALL}\n")
+                             sys.stdout.write(f"    {progress_string} ")
+                             sys.stdout.flush()
+                        elif status_code == "warning_down":
+                             sys.stdout.write(f"\r    {progress_string} - {Fore.YELLOW}Warning (Down?): {target_ip}{Style.RESET_ALL}\n")
+                             sys.stdout.write(f"    {progress_string} ")
+                             sys.stdout.flush()
+                        elif status_code == "failed":
+                             sys.stdout.write(f"\r    {progress_string} - {Fore.RED}FAILED: {message}{Style.RESET_ALL}\n")
+                             sys.stdout.write(f"    {progress_string} ")
+                             sys.stdout.flush()
+                        # For 'success', just update the progress bar/ETA
+
+                    except Exception as exc:
+                        print_red(f'\n[!] Host {ip} generated an exception during Phase 4 future processing: {exc}')
+                        log.exception(f"Phase 4 future exception for {ip}")
+                        results_summary['failed'] += 1
+                        # Reprint progress after error
+                        sys.stdout.write(f"\r    {progress_string} ")
+                        sys.stdout.flush()
+
+            # Final newline after loop finishes
+            print()
+            print_green(f"[+] Phase 4 processing complete.")
+            print_blue("    Summary:")
+            print_green(f"      Successful Scans: {results_summary['success']}")
+            print_purple(f"      Skipped (Already Existed): {results_summary['skipped_exists']}")
+            print_yellow(f"      Skipped (No Ports Found): {results_summary['skipped_no_ports']}") # Should be 0 ideally
+            print_yellow(f"      Warnings (Host Seemed Down): {results_summary['warning_down']}")
+            print_red(f"      Failed Scans: {results_summary['failed']}")
+
+
+        # --- Final Output ---
+        print_blue(f"\n--- Scan {args.scan_title} Complete ---")
+        print_blue(f"--- Results are in: {current_scan_dir.resolve()} ---")
+        log.info(f"--- Scan {args.scan_title} Complete ---") 
+
+    finally:
+        # Ensure we change back to the original directory
+        os.chdir(original_cwd)
+        log.info(f"Changed back to original directory: {original_cwd}")
+        os.chdir(original_cwd)
+        logging.shutdown()
+
+if __name__ == "__main__":
+    main()
