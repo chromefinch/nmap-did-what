@@ -512,7 +512,7 @@ def check_masscan_activity_on_block(block_cidr_str, ports, rate, extra_options_s
     temp_masscan_output_file = output_dir_path / f"{scan_title_for_tempfile}_masscan_temp_{sanitized_block_name}.txt"
     
     current_masscan_cmd = ["masscan", block_cidr_str, "-p", ports, "--rate", str(rate)]
-    current_masscan_cmd.extend(["--wait", "0"]) 
+    current_masscan_cmd.extend(["--wait", "10"]) 
     current_masscan_cmd.extend(["-oL", str(temp_masscan_output_file)])
 
     if extra_options_str:
