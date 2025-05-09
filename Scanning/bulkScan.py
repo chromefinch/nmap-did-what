@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#generated with Gemini based on a bash script i wrote. 
 
 import argparse
 import os
