@@ -1,503 +1,466 @@
 import xml.etree.ElementTree as ET
-import sqlite3
-import argparse
-import sys
-import os
-import json # Added for handling JSON data for script outputs
+import json
+import sys # For accessing command-line arguments
 
-#
-# Script to parse nmap xml files and populate an SQLite DB
-# use with Grafana Dashboard - https://hackertarget.com/nmap-dashboard-with-grafana/
-#
-
-# Helper function to recursively parse structured Nmap script/table elements
-def _parse_structured_xml_node(node):
+def _parse_table_node(table_node):
     """
-    Recursively parses an XML node (typically <script> or <table>)
-    containing <elem> or nested <table> into a dictionary.
+    Recursively parses a <table> node and its children (elem, table).
+    A table can have a 'key' attribute.
+    It can contain <elem> tags and nested <table> tags.
     """
-    data = {}
-    # Direct child 'elem' elements
-    for elem in node.findall('elem'):
-        key = elem.get('key')
-        if key:
-            # If multiple elements have the same key, store as a list
-            if key in data:
-                if not isinstance(data[key], list):
-                    data[key] = [data[key]]
-                data[key].append(elem.text)
-            else:
-                data[key] = elem.text
-    # Direct child 'table' elements
-    for table in node.findall('table'):
-        key = table.get('key')
-        table_data = _parse_structured_xml_node(table) # Recurse
-        if key:
-            # If multiple tables have the same key, store as a list
-            if key in data:
-                if not isinstance(data[key], list):
-                    data[key] = [data[key]]
-                data[key].append(table_data)
-            else:
-                data[key] = table_data
-        else:
-            # Handle table without a key by adding to a list of anonymous tables
-            data.setdefault('anonymous_tables', []).append(table_data)
-    return data
+    table_content = {}  # This will store the final parsed data for this table node
+    
+    # Data extracted from direct children of this table node
+    direct_elements = {}
+    unkeyed_direct_elements = []
+    nested_tables_list = []
 
+    # Parse direct <elem> children of this <table>
+    for elem_node in table_node.findall('elem'):
+        key = elem_node.get('key')
+        value = elem_node.text
+        if key:
+            direct_elements[key] = value
+        elif value: # Unkeyed <elem> with text content
+            unkeyed_direct_elements.append(value)
+
+    # Parse nested <table> children of this <table>
+    for sub_table_node in table_node.findall('table'):
+        parsed_sub_table = _parse_table_node(sub_table_node) # Recursive call
+        if parsed_sub_table: # Only add if parsing returned something
+            nested_tables_list.append(parsed_sub_table)
+
+    # Get the key of the current table, if it exists
+    table_key = table_node.get('key')
+
+    if table_key:
+        # If the table has a key, its content (elements and sub-tables)
+        # goes into a dictionary under this key.
+        current_table_data_under_key = {}
+        if direct_elements:
+            current_table_data_under_key.update(direct_elements)
+        if unkeyed_direct_elements:
+            # Store unkeyed elements under a special '_values' key if other keyed elements exist,
+            # or directly if no other keyed elements.
+            if current_table_data_under_key:
+                 current_table_data_under_key['_unkeyed_values'] = unkeyed_direct_elements
+            else: # Only unkeyed elements in this keyed table
+                 current_table_data_under_key = {'_values': unkeyed_direct_elements}
+
+
+        if nested_tables_list:
+            current_table_data_under_key['tables'] = nested_tables_list
+        
+        table_content[table_key] = current_table_data_under_key
+    else:
+        # If the table has no key, its direct elements are merged.
+        if direct_elements:
+            table_content.update(direct_elements)
+        
+        if unkeyed_direct_elements:
+            if table_content: # if there were already keyed elements merged
+                table_content['_unkeyed_values'] = unkeyed_direct_elements
+            else: # only unkeyed elements in this unkeyed table
+                table_content['_values'] = unkeyed_direct_elements
+
+
+        # And its nested tables are stored in a 'tables' list.
+        if nested_tables_list:
+            table_content['tables'] = nested_tables_list
+            
+    return table_content
+
+def _parse_script_node(script_node):
+    """
+    Helper to parse a <script> node, including its direct <elem> children
+    and <table> children.
+    """
+    script_info = {
+        'id': script_node.get('id'),
+        'output': script_node.get('output')
+    }
+    
+    # Parse direct <elem> children of the <script> tag
+    direct_elements = {}
+    unkeyed_direct_elements = []
+    
+    for elem_node in script_node.findall('elem'):
+        key = elem_node.get('key')
+        value = elem_node.text
+        if key:
+            direct_elements[key] = value
+        elif value: # Elem without a key, but with text content
+            unkeyed_direct_elements.append(value)
+            
+    if direct_elements:
+        script_info['elements'] = direct_elements
+        if unkeyed_direct_elements: # If there were also unkeyed direct elements
+            script_info['elements']['_unkeyed_values'] = unkeyed_direct_elements
+    elif unkeyed_direct_elements: # Only unkeyed direct elements found
+         script_info['elements'] = {'_values': unkeyed_direct_elements}
+
+    # Parse <table> children of the <script> tag
+    tables_data = []
+    for table_node in script_node.findall('table'):
+        parsed_table = _parse_table_node(table_node)
+        if parsed_table: # Only add if parsing returned something non-empty
+            tables_data.append(parsed_table)
+    
+    if tables_data:
+        script_info['tables'] = tables_data
+        
+    return script_info
 
 def parse_nmap_xml(xml_file):
-    """Parses an Nmap XML file and extracts scan data."""
+    """
+    Parses an Nmap XML file and extracts detailed host and service information,
+    including comprehensive script outputs.
+    """
     try:
         tree = ET.parse(xml_file)
         root = tree.getroot()
-    except FileNotFoundError:
-        print(f"Error: XML file not found at {xml_file}", file=sys.stderr)
-        return None, None
     except ET.ParseError as e:
-        print(f"Error: Failed to parse XML file {xml_file}. Reason: {e}", file=sys.stderr)
-        return None, None
-
-    nmap_version = root.get('version', 'Unknown')
-    command_line = root.get('args', 'Unknown')
-
-    scan_start_timestamp_ms = None
-    scan_start_time_str = root.get('start')
-    if scan_start_time_str is not None:
-        try:
-            scan_start_timestamp_ms = int(scan_start_time_str) * 1000 # Convert to milliseconds
-        except ValueError:
-            print(f"Warning: Could not parse scan start time '{scan_start_time_str}' as integer.", file=sys.stderr)
-
-    elapsed_time = 'Unknown'
-    runstats_elem = root.find('runstats')
-    if runstats_elem is not None:
-        finished_elem = runstats_elem.find('finished')
-        if finished_elem is not None:
-            elapsed_time = finished_elem.get('elapsed', 'Unknown')
-
-    total_hosts_scanned = 0
-    total_open_ports_found = 0
+        print(f"Error parsing XML file '{xml_file}': {e}", file=sys.stderr)
+        return []
+    except FileNotFoundError:
+        print(f"Error: File not found: '{xml_file}'", file=sys.stderr)
+        return []
 
     hosts_data = []
-    for host_elem in root.findall('host'):
-        total_hosts_scanned += 1
 
-        status_elem = host_elem.find('status')
-        host_state = status_elem.get('state', 'unknown') if status_elem is not None else 'unknown'
-        if host_state != 'up':
-            continue
+    for host_node in root.findall('host'):
+        host_info = {}
 
-        ip_address = 'Unknown'
-        mac_address = None
-        mac_vendor = None
-        for addr_elem in host_elem.findall('address'):
-            addr_type = addr_elem.get('addrtype')
-            if addr_type == 'ipv4':
-                ip_address = addr_elem.get('addr', ip_address) # Keep first IPv4 if multiple
-            elif addr_type == 'ipv6' and ip_address == 'Unknown': # Fallback to IPv6 if no IPv4
-                ip_address = addr_elem.get('addr', 'Unknown')
-            elif addr_type == 'mac':
-                mac_address = addr_elem.get('addr')
-                mac_vendor = addr_elem.get('vendor')
-        if ip_address == 'Unknown' and host_elem.find("address") is not None: # Fallback any address
-             ip_address = host_elem.find("address").get('addr', 'Unknown')
+        # --- Host Status ---
+        status_node = host_node.find('status')
+        if status_node is not None:
+            host_info['status'] = {
+                'state': status_node.get('state'),
+                'reason': status_node.get('reason'),
+                'reason_ttl': status_node.get('reason_ttl')
+            }
 
-
-        hostname = 'Unknown'
-        hostnames_elem = host_elem.find('hostnames')
-        if hostnames_elem is not None:
-            user_hostname_elem = hostnames_elem.find("hostname[@type='user']")
-            ptr_hostname_elem = hostnames_elem.find("hostname[@type='PTR']")
-            any_hostname_elem = hostnames_elem.find('hostname')
-            if user_hostname_elem is not None:
-                hostname = user_hostname_elem.get('name', 'Unknown')
-            elif ptr_hostname_elem is not None:
-                hostname = ptr_hostname_elem.get('name', 'Unknown')
-            elif any_hostname_elem is not None:
-                hostname = any_hostname_elem.get('name', 'Unknown')
-
-        os_name = 'Unknown'
-        os_accuracy = None
-        os_elem = host_elem.find('os')
-        if os_elem is not None:
-            best_osmatch_elem = None
-            highest_accuracy = -1
-            for osmatch_elem in os_elem.findall('osmatch'):
-                current_accuracy = int(osmatch_elem.get('accuracy', '0'))
-                if current_accuracy > highest_accuracy:
-                    highest_accuracy = current_accuracy
-                    best_osmatch_elem = osmatch_elem
-            
-            if best_osmatch_elem is not None:
-                os_name = best_osmatch_elem.get('name', 'Unknown')
-                os_accuracy = highest_accuracy
-            # Fallback for OS info in service elements handled per-port
-
-        uptime_seconds = None
-        uptime_elem = host_elem.find('uptime')
-        if uptime_elem is not None:
-            try:
-                uptime_seconds = int(uptime_elem.get('seconds'))
-            except (ValueError, TypeError):
-                pass # uptime_seconds remains None
-
-        distance = None
-        distance_elem = host_elem.find('distance')
-        if distance_elem is not None:
-            try:
-                distance = int(distance_elem.get('value'))
-            except (ValueError, TypeError):
-                pass # distance remains None
-        
-        # --- Host Script Data ---
-        host_scripts_dict = {}
-        hostscript_section = host_elem.find('hostscript')
-        if hostscript_section is not None:
-            for script_elem in hostscript_section.findall('script'):
-                script_id = script_elem.get('id')
-                script_output_attr = script_elem.get('output')
-                if not script_id:
-                    continue
-
-                structured_data = _parse_structured_xml_node(script_elem)
-                if structured_data:
-                    host_scripts_dict[script_id] = structured_data
-                elif script_output_attr: # Fallback to raw output attribute
-                    host_scripts_dict[script_id] = script_output_attr
-        host_scripts_json = json.dumps(host_scripts_dict) if host_scripts_dict else None
+        # --- Address Information (IPv4, IPv6, MAC) ---
+        # Nmap typically provides one primary address type used for the scan (e.g. ipv4)
+        # and might list others if available (e.g. MAC if on local network)
+        addresses = []
+        for addr_node in host_node.findall('address'):
+            addr_info = {
+                'address': addr_node.get('addr'),
+                'type': addr_node.get('addrtype')
+            }
+            if addr_node.get('vendor'): # For MAC addresses
+                addr_info['vendor'] = addr_node.get('vendor')
+            addresses.append(addr_info)
+        if addresses:
+            host_info['addresses'] = addresses
+            # For convenience, add top-level ip_address if an IPv4 or IPv6 is primary
+            primary_ip = next((a['address'] for a in addresses if a['type'] in ['ipv4', 'ipv6']), None)
+            if primary_ip:
+                 host_info['ip_address'] = primary_ip
 
 
-        ports_tested_count = 0
-        ports_open_count = 0
-        ports_closed_count = 0
-        ports_filtered_count = 0
-        parsed_ports = []
-
-        ports_elem = host_elem.find('ports')
-        if ports_elem is not None:
-            for port_elem in ports_elem.findall('port'):
-                ports_tested_count += 1
-                port_id = port_elem.get('portid', 'N/A')
-                protocol = port_elem.get('protocol', 'N/A')
-
-                state = 'N/A'
-                reason = None
-                state_elem = port_elem.find('state')
-                if state_elem is not None:
-                    state = state_elem.get('state', 'N/A')
-                    reason = state_elem.get('reason')
-
-                if state == 'open':
-                    ports_open_count += 1
-                    total_open_ports_found += 1
-                elif state == 'closed':
-                    ports_closed_count += 1
-                elif state == 'filtered':
-                    ports_filtered_count += 1
-
-                service_name = None
-                service_product = None
-                service_version = None
-                service_extrainfo = None
-                service_ostype = None
-                service_method = None
-                service_conf = None
-                http_title = None # Initialize for each port
-                ssl_common_name = None
-                ssl_issuer = None
-                all_port_scripts_data = {} # Initialize for each port
-
-
-                service_elem = port_elem.find('service')
-                if service_elem is not None:
-                    service_name = service_elem.get('name')
-                    service_product = service_elem.get('product')
-                    service_version = service_elem.get('version')
-                    service_extrainfo = service_elem.get('extrainfo')
-                    service_ostype = service_elem.get('ostype')
-                    service_method = service_elem.get('method')
-                    conf_str = service_elem.get('conf')
-                    if conf_str:
-                        try:
-                            service_conf = int(conf_str)
-                        except ValueError:
-                            pass # service_conf remains None
-                    if service_ostype and os_name == 'Unknown': # OS fallback
-                        os_name = service_ostype
-
-                # Script Info
-                for script_elem in port_elem.findall('script'):
-                    script_id = script_elem.get('id')
-                    script_output_attr = script_elem.get('output')
-                    if not script_id:
-                        continue
-                    
-                    structured_data = _parse_structured_xml_node(script_elem)
-
-                    if structured_data:
-                        all_port_scripts_data[script_id] = structured_data
-                        if script_id == 'http-title' and 'output' in structured_data : # http-title typically simple
-                             http_title = str(structured_data['output']).strip() if isinstance(structured_data['output'], str) else script_output_attr.strip() if script_output_attr else None
-                        elif script_id == 'ssl-cert':
-                            subject = structured_data.get('subject', {})
-                            issuer = structured_data.get('issuer', {})
-                            if isinstance(subject, dict): ssl_common_name = subject.get('commonName')
-                            if isinstance(issuer, dict):
-                                issuer_cn = issuer.get('commonName', '')
-                                issuer_org = issuer.get('organizationName', '')
-                                ssl_issuer = f"{issuer_cn} {issuer_org}".strip() if issuer_cn or issuer_org else None
-                    
-                    elif script_output_attr: # Fallback to raw output attribute
-                        all_port_scripts_data[script_id] = script_output_attr
-                        if script_id == 'http-title':
-                            http_title = script_output_attr.strip()
-                
-                # Ensure http_title is captured if it was only in output attribute and not parsed as structured
-                if not http_title and 'http-title' in all_port_scripts_data and isinstance(all_port_scripts_data['http-title'], str):
-                    http_title = all_port_scripts_data['http-title'].strip()
-
-
-                parsed_ports.append({
-                    'port': port_id,
-                    'protocol': protocol,
-                    'state': state,
-                    'reason': reason,
-                    'service_name': service_name,
-                    'service_product': service_product,
-                    'service_version': service_version,
-                    'service_extrainfo': service_extrainfo,
-                    'service_method': service_method,
-                    'service_conf': service_conf,
-                    'http_title': http_title,
-                    'ssl_common_name': ssl_common_name,
-                    'ssl_issuer': ssl_issuer,
-                    'all_scripts_data': json.dumps(all_port_scripts_data) if all_port_scripts_data else None
+        # --- Hostnames ---
+        hostnames_node = host_node.find('hostnames')
+        if hostnames_node is not None and hostnames_node.findall('hostname'):
+            host_info['hostnames'] = []
+            for hostname_entry in hostnames_node.findall('hostname'):
+                host_info['hostnames'].append({
+                    'name': hostname_entry.get('name'),
+                    'type': hostname_entry.get('type')
                 })
-
-            extraports_elem = ports_elem.find('extraports')
-            if extraports_elem is not None:
-                extra_state = extraports_elem.get('state')
-                try:
-                    extra_count = int(extraports_elem.get('count', '0'))
-                except ValueError: extra_count = 0
-                ports_tested_count += extra_count
-                if extra_state == 'closed': ports_closed_count += extra_count
-                elif extra_state == 'filtered': ports_filtered_count += extra_count
-
-        start_timestamp_ms_host = None
-        end_timestamp_ms_host = None
-        host_start_time_str = host_elem.get('starttime')
-        host_end_time_str = host_elem.get('endtime')
-        try:
-            if host_start_time_str: start_timestamp_ms_host = int(host_start_time_str) * 1000
-            if host_end_time_str: end_timestamp_ms_host = int(host_end_time_str) * 1000
-        except ValueError:
-            print(f"Warning: Could not parse host time for {ip_address}.", file=sys.stderr)
-
-        hosts_data.append({
-            'ip': ip_address,
-            'hostname': hostname,
-            'mac_address': mac_address,
-            'mac_vendor': mac_vendor,
-            'os': os_name,
-            'os_accuracy': os_accuracy,
-            'uptime_seconds': uptime_seconds,
-            'distance': distance,
-            'host_scripts_data': host_scripts_json,
-            'ports_tested': ports_tested_count,
-            'ports_open': ports_open_count,
-            'ports_closed': ports_closed_count,
-            'ports_filtered': ports_filtered_count,
-            'start_time': start_timestamp_ms_host,
-            'end_time': end_timestamp_ms_host,
-            'ports': parsed_ports
-        })
-
-    scan_summary = {
-        'nmap_version': nmap_version,
-        'command_line': command_line,
-        'start_time': scan_start_timestamp_ms,
-        'elapsed_time': elapsed_time,
-        'total_hosts': total_hosts_scanned,
-        'total_up_hosts': len(hosts_data),
-        'total_open_ports': total_open_ports_found
-    }
-    return scan_summary, hosts_data
+        
+        # --- OS Detection ---
+        os_node = host_node.find('os')
+        if os_node is not None:
+            host_info['os_detection'] = {}
+            
+            # OS Matches
+            osmatch_nodes = os_node.findall('osmatch')
+            if osmatch_nodes:
+                host_info['os_detection']['osmatches'] = []
+                for osmatch_node in osmatch_nodes: # Nmap can list multiple OS matches
+                    osmatch_data = {
+                        'name': osmatch_node.get('name'),
+                        'accuracy': osmatch_node.get('accuracy')
+                    }
+                    osclasses = []
+                    for osclass_node in osmatch_node.findall('osclass'):
+                        osclasses.append({
+                            'type': osclass_node.get('type'),
+                            'vendor': osclass_node.get('vendor'),
+                            'osfamily': osclass_node.get('osfamily'),
+                            'osgen': osclass_node.get('osgen'),
+                            'accuracy': osclass_node.get('accuracy'),
+                            'cpe': [cpe.text for cpe in osclass_node.findall('cpe')]
+                        })
+                    if osclasses:
+                        osmatch_data['osclasses'] = osclasses
+                    host_info['os_detection']['osmatches'].append(osmatch_data)
+            
+            # Ports used for OS detection
+            portused_nodes = os_node.findall('portused')
+            if portused_nodes:
+                host_info['os_detection']['ports_used_for_os_scan'] = []
+                for pu_node in portused_nodes:
+                    host_info['os_detection']['ports_used_for_os_scan'].append({
+                        'state': pu_node.get('state'),
+                        'proto': pu_node.get('proto'),
+                        'portid': pu_node.get('portid')
+                    })
+            
+            # OS Fingerprint (if available)
+            osfingerprint_node = os_node.find('osfingerprint')
+            if osfingerprint_node is not None and osfingerprint_node.get('fingerprint'):
+                 host_info['os_detection']['fingerprint'] = osfingerprint_node.get('fingerprint')
 
 
-def create_database(db_name):
-    """Creates the SQLite database and tables if they don't exist."""
-    try:
-        with sqlite3.connect(db_name) as conn:
-            c = conn.cursor()
-            c.execute("PRAGMA foreign_keys = ON;")
+        # --- Ports Information ---
+        ports_info = []
+        ports_node = host_node.find('ports')
+        if ports_node is not None:
+            for port_node in ports_node.findall('port'):
+                port_details = {
+                    'protocol': port_node.get('protocol'),
+                    'portid': port_node.get('portid')
+                }
 
-            c.execute('''CREATE TABLE IF NOT EXISTS scans (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            nmap_version TEXT,
-                            command_line TEXT,
-                            start_time INTEGER, -- Unix timestamp (milliseconds)
-                            elapsed_time TEXT,
-                            total_hosts INTEGER,
-                            total_up_hosts INTEGER,
-                            total_open_ports INTEGER
-                        )''')
-
-            c.execute('''CREATE TABLE IF NOT EXISTS hosts (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            scan_id INTEGER,
-                            ip TEXT,
-                            hostname TEXT,
-                            mac_address TEXT,
-                            mac_vendor TEXT,
-                            os TEXT,
-                            os_accuracy INTEGER,
-                            uptime_seconds INTEGER,
-                            distance INTEGER,
-                            host_scripts_data TEXT, -- JSON data for host scripts
-                            ports_tested INTEGER,
-                            ports_open INTEGER,
-                            ports_closed INTEGER,
-                            ports_filtered INTEGER,
-                            start_time INTEGER, -- Unix timestamp (milliseconds)
-                            end_time INTEGER,   -- Unix timestamp (milliseconds)
-                            FOREIGN KEY (scan_id) REFERENCES scans (id) ON DELETE CASCADE
-                        )''')
-            c.execute("CREATE INDEX IF NOT EXISTS idx_host_ip ON hosts (scan_id, ip)")
-            c.execute("CREATE INDEX IF NOT EXISTS idx_host_os ON hosts (os)") # Added index on OS
-            c.execute("CREATE INDEX IF NOT EXISTS idx_host_mac ON hosts (mac_address)")
+                state_node = port_node.find('state')
+                if state_node is not None:
+                    port_details['state'] = state_node.get('state')
+                    port_details['reason'] = state_node.get('reason')
+                    if state_node.get('reason_ttl'):
+                        port_details['reason_ttl'] = state_node.get('reason_ttl')
 
 
-            c.execute('''CREATE TABLE IF NOT EXISTS ports (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            scan_id INTEGER, 
-                            host_id INTEGER,
-                            port TEXT,
-                            protocol TEXT,
-                            state TEXT,
-                            reason TEXT, -- Reason for port state
-                            service_name TEXT,
-                            service_product TEXT,
-                            service_version TEXT,
-                            service_extrainfo TEXT,
-                            service_method TEXT, -- e.g. 'probed', 'table'
-                            service_conf INTEGER, -- 1-10 confidence
-                            http_title TEXT,
-                            ssl_common_name TEXT,
-                            ssl_issuer TEXT,
-                            all_scripts_data TEXT, -- JSON data for all port scripts
-                            FOREIGN KEY (scan_id) REFERENCES scans (id) ON DELETE CASCADE,
-                            FOREIGN KEY (host_id) REFERENCES hosts (id) ON DELETE CASCADE
-                        )''')
-            c.execute("CREATE INDEX IF NOT EXISTS idx_port_lookup ON ports (host_id, port, protocol)")
-            c.execute("CREATE INDEX IF NOT EXISTS idx_port_service ON ports (service_name)")
-            c.execute("CREATE INDEX IF NOT EXISTS idx_port_state ON ports (state)")
-            c.execute("CREATE INDEX IF NOT EXISTS idx_port_scan_id_port ON ports (scan_id, port)") # For scan-wide port search
+                service_node = port_node.find('service')
+                if service_node is not None:
+                    port_details['service'] = {
+                        'name': service_node.get('name'),
+                        'product': service_node.get('product'),
+                        'version': service_node.get('version'),
+                        'extrainfo': service_node.get('extrainfo'),
+                        'method': service_node.get('method'),
+                        'confidence': service_node.get('conf'), # 'conf' attribute for confidence
+                        'ostype': service_node.get('ostype'),
+                        'devicetype': service_node.get('devicetype'),
+                        'hostname': service_node.get('hostname') # some services report hostname
+                    }
+                    # Remove None values from service dictionary for cleaner output
+                    port_details['service'] = {k: v for k, v in port_details['service'].items() if v is not None}
 
-            conn.commit()
-            print(f"Database '{db_name}' initialized successfully.")
-            return True
-    except sqlite3.Error as e:
-        print(f"Database error during creation: {e}", file=sys.stderr)
-        return False
+                    cpe_nodes = service_node.findall('cpe')
+                    if cpe_nodes:
+                        port_details['service']['cpe'] = [cpe.text for cpe in cpe_nodes]
+                
+                # --- SCRIPT PARSING for each port ---
+                port_scripts_data = []
+                for script_node in port_node.findall('script'):
+                    parsed_script = _parse_script_node(script_node)
+                    if parsed_script: # Ensure something was parsed
+                        port_scripts_data.append(parsed_script)
 
-def insert_data(db_name, scan_summary, hosts_data):
-    """Inserts the parsed scan data into the SQLite database."""
-    if not scan_summary or not hosts_data: # Check if hosts_data is empty too
-        print("No valid scan data or no 'up' hosts found for insertion.")
-        return
+                if port_scripts_data:
+                    port_details['scripts'] = port_scripts_data
+                
+                if port_details: # Ensure port_details is not empty
+                    ports_info.append(port_details)
 
-    try:
-        with sqlite3.connect(db_name) as conn:
-            c = conn.cursor()
-            c.execute("PRAGMA foreign_keys = ON;")
+        if ports_info:
+            host_info['ports'] = ports_info
+        
+        # --- Host Level Scripts ---
+        hostscript_section_node = host_node.find('hostscript')
+        if hostscript_section_node is not None:
+            host_level_scripts_data = []
+            for script_node in hostscript_section_node.findall('script'):
+                parsed_script = _parse_script_node(script_node)
+                if parsed_script:
+                    host_level_scripts_data.append(parsed_script)
+            if host_level_scripts_data:
+                host_info['host_scripts'] = host_level_scripts_data
 
-            c.execute("""
-                INSERT INTO scans (nmap_version, command_line, start_time, elapsed_time, total_hosts, total_up_hosts, total_open_ports)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                scan_summary['nmap_version'], scan_summary['command_line'], scan_summary['start_time'],
-                scan_summary['elapsed_time'], scan_summary['total_hosts'], scan_summary['total_up_hosts'],
-                scan_summary['total_open_ports']
-            ))
-            scan_id = c.lastrowid
-
-            for host in hosts_data:
-                c.execute("""
-                    INSERT INTO hosts (scan_id, ip, hostname, mac_address, mac_vendor, os, os_accuracy, uptime_seconds, distance, host_scripts_data, ports_tested, ports_open, ports_closed, ports_filtered, start_time, end_time)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    scan_id, host['ip'], host['hostname'], host['mac_address'], host['mac_vendor'],
-                    host['os'], host['os_accuracy'], host['uptime_seconds'], host['distance'],
-                    host['host_scripts_data'], host['ports_tested'], host['ports_open'],
-                    host['ports_closed'], host['ports_filtered'], host['start_time'], host['end_time']
-                ))
-                host_id = c.lastrowid
-
-                for port_data in host['ports']: # Renamed 'port' to 'port_data' to avoid conflict
-                    c.execute("""
-                        INSERT INTO ports (scan_id, host_id, port, protocol, state, reason, 
-                                           service_name, service_product, service_version, service_extrainfo, 
-                                           service_method, service_conf, http_title, ssl_common_name, 
-                                           ssl_issuer, all_scripts_data)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        scan_id, host_id, port_data['port'], port_data['protocol'], port_data['state'], port_data['reason'],
-                        port_data['service_name'], port_data['service_product'], port_data['service_version'],
-                        port_data['service_extrainfo'], port_data['service_method'], port_data['service_conf'],
-                        port_data['http_title'], port_data['ssl_common_name'], port_data['ssl_issuer'],
-                        port_data['all_scripts_data']
-                    ))
-            conn.commit()
-            print(f"Successfully inserted data for scan ID {scan_id} into '{db_name}'.")
-    except sqlite3.Error as e:
-        print(f"Database error during insertion: {e}", file=sys.stderr)
+        # --- Other Host Information ---
+        # Trace information
+        trace_node = host_node.find('trace')
+        if trace_node is not None:
+            host_info['trace'] = {'port': trace_node.get('port'), 'proto': trace_node.get('proto'), 'hops': []}
+            for hop_node in trace_node.findall('hop'):
+                hop_data = {
+                    'ttl': hop_node.get('ttl'),
+                    'rtt': hop_node.get('rtt'),
+                    'ipaddr': hop_node.get('ipaddr'),
+                    'host': hop_node.get('host') # often the same as ipaddr if no PTR
+                }
+                host_info['trace']['hops'].append({k:v for k,v in hop_data.items() if v is not None})
+        
+        # Times
+        times_node = host_node.find('times')
+        if times_node is not None:
+            host_info['times'] = {
+                'srtt': times_node.get('srtt'), # Smoothed Round Trip Time
+                'rttvar': times_node.get('rttvar'), # Round Trip Time Variance
+                'to': times_node.get('to') # Timeout
+            }
+            host_info['times'] = {k:v for k,v in host_info['times'].items() if v is not None}
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Parse Nmap XML output and store results in an SQLite database.",
-        epilog="Example: python nmap_parser.py scan_results.xml -db nmap_data.sqlite"
-    )
-    parser.add_argument("xml_file", help="Path to the Nmap output XML file")
-    parser.add_argument("-db", "--database", dest='db_name', default='nmap_results.db',
-                        help="Path to the SQLite database file (default: nmap_results.db)")
-    args = parser.parse_args()
+        if host_info: # Only add if we have gathered some information for the host
+            hosts_data.append(host_info)
 
-    xml_file = args.xml_file
-    db_name = args.db_name
+    return hosts_data
 
-    if not os.path.exists(xml_file):
-        print(f"Error: Input XML file not found: {xml_file}", file=sys.stderr)
-        sys.exit(1)
+# --- Main execution example ---
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python nmap_parser.py <nmap_output.xml>", file=sys.stderr)
+        # Create a dummy XML file for testing if no argument is provided
+        print("No XML file provided. Creating and using 'dummy_nmap_output.xml' for demonstration.", file=sys.stderr)
+        dummy_xml_content = """
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<nmaprun scanner="nmap" args="nmap -A -sV -T4 scanme.nmap.org example.com" start="1684190400" startstr="Wed May 15 16:00:00 2024" version="7.92" xmloutputversion="1.05">
+  <scaninfo type="syn" protocol="tcp" numservices="1000" services="1-1024"/>
+  <verbose level="0"/>
+  <debugging level="0"/>
+  <host starttime="1684190401" endtime="1684190405">
+    <status state="up" reason="syn-ack" reason_ttl="0"/>
+    <address addr="45.33.32.156" addrtype="ipv4"/>
+    <hostnames>
+      <hostname name="scanme.nmap.org" type="user"/>
+      <hostname name="scanme.nmap.org" type="PTR"/>
+    </hostnames>
+    <ports>
+      <port protocol="tcp" portid="22">
+        <state state="open" reason="syn-ack" reason_ttl="0"/>
+        <service name="ssh" product="OpenSSH" version="8.2p1 Ubuntu 4ubuntu0.5" extrainfo="Ubuntu Linux; protocol 2.0" ostype="Linux" method="probed" conf="10">
+          <cpe>cpe:/a:openssh:openssh:8.2p1</cpe>
+          <cpe>cpe:/o:linux:linux_kernel</cpe>
+        </service>
+        <script id="ssh-hostkey" output="RSA key fingerprint is SHA256:KEYDATA...">
+          <elem key="type">ssh-rsa</elem>
+          <elem key="key">AAAAB3NzaC1yc2EAAAADAQABAAABAQ...</elem>
+          <elem key="bits">2048</elem>
+          <elem key="fingerprint">abcdef1234567890</elem>
+        </script>
+      </port>
+      <port protocol="tcp" portid="80">
+        <state state="open" reason="syn-ack" reason_ttl="0"/>
+        <service name="http" product="Apache httpd" version="2.4.41" extrainfo="(Ubuntu)" method="probed" conf="10">
+          <cpe>cpe:/a:apache:http_server:2.4.41</cpe>
+        </service>
+        <script id="http-title" output="Go ahead and ScanMe!"><elem key="title">Go ahead and ScanMe!</elem></script>
+        <script id="http-server-header" output="Apache/2.4.41 (Ubuntu)"><elem>Apache/2.4.41 (Ubuntu)</elem></script>
+        <script id="http-methods" output="GET HEAD POST OPTIONS">
+            <table> <elem key="GET">1</elem>
+                <elem key="HEAD">1</elem>
+                <elem key="POST">1</elem>
+                <elem key="OPTIONS">1</elem>
+            </table>
+            <table key="potentially_dangerous_methods"> <elem key="TRACE">1</elem>
+            </table>
+        </script>
+        <script id="http-ntlm-info" output="target_name: SCANME_WEB&#xa;netbios_domain_name: WORKGROUP">
+          <elem key="TargetName">SCANME_WEB</elem>
+          <elem key="NetBIOSDomainName">WORKGROUP</elem>
+          <elem key="NetBIOSComputerName">SCANME_WEB_NB</elem>
+          <elem key="DNSDomainName">scanme.nmap.org</elem>
+          <elem key="DNSComputerName">scanme.nmap.org</elem>
+          <elem key="ProductVersion">6.0</elem>
+        </script>
+      </port>
+      <port protocol="tcp" portid="443">
+        <state state="open" reason="syn-ack" reason_ttl="0"/>
+        <service name="https" product="Apache httpd" version="2.4.41" extrainfo="(Ubuntu)" tunnel="ssl" method="probed" conf="10">
+            <cpe>cpe:/a:apache:http_server:2.4.41</cpe>
+        </service>
+        <script id="ssl-cert" output="Subject: commonName=scanme.nmap.org">
+            <table key="subject">
+                <elem key="commonName">scanme.nmap.org</elem>
+            </table>
+            <table key="issuer">
+                <elem key="organizationalUnitName">Let's Encrypt</elem>
+                <elem key="commonName">R3</elem>
+            </table>
+            <elem key="pem">-BEGIN CERTIFICATE-...</elem>
+        </script>
+        <script id="ssl-enum-ciphers" output="...">
+            <table key="TLSv1.2">
+                <table key="ciphers">
+                    <elem key="name">TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256</elem>
+                    <elem key="strength">A</elem>
+                </table>
+                <elem key="compressors">NULL</elem>
+                <table key="server_preference">
+                     <elem key="order">server</elem>
+                </table>
+            </table>
+        </script>
+      </port>
+      <port protocol="tcp" portid="3389"> <state state="filtered" reason="no-response" reason_ttl="0"/>
+        <service name="ms-wbt-server" method="table" conf="3"/>
+        <script id="rdp-ntlm-info" output="NTLMSSP (Windows Server 2019 Standard 17763)">
+            <elem key="Target_Name">RDS-SERVER</elem>
+            <elem key="NetBIOS_Domain_Name">CORP</elem>
+            <elem key="NetBIOS_Computer_Name">RDS-SERVER</elem>
+            <elem key="DNS_Domain_Name">corp.example.com</elem>
+            <elem key="DNS_Computer_Name">rds-server.corp.example.com</elem>
+            <elem key="Product_Version">10.0.17763</elem>
+        </script>
+      </port>
+    </ports>
+    <os>
+      <portused state="open" proto="tcp" portid="22"/>
+      <osmatch name="Linux 5.X" accuracy="100"><osclass type="general purpose" vendor="Linux" osfamily="Linux" osgen="5.X" accuracy="100"/></osmatch>
+    </os>
+    <hostscript>
+        <script id="smb-os-discovery" output="Windows Server 2019 Standard 17763">
+            <elem key="os">Windows Server 2019 Standard 17763</elem>
+            <elem key="lanmanager_dialect">SMB 2.02/2.10</elem>
+            <elem key="server_nt_status">0x00000000</elem>
+        </script>
+    </hostscript>
+    <trace port="80" proto="tcp">
+      <hop ttl="1" rtt="1.23" ipaddr="192.168.0.1" host="router.example.com"/>
+    </trace>
+    <times srtt="12345" rttvar="6789" to="100000"/>
+  </host>
+  <runstats>
+    <finished time="1684190410" timestr="Wed May 15 16:00:10 2024" elapsed="10" summary="Nmap done; 1 IP address (1 host up) scanned in 10.00 seconds" exit="success"/>
+    <hosts up="1" down="0" total="1"/>
+  </runstats>
+</nmaprun>
+"""
+        xml_file_to_parse = "dummy_nmap_output.xml"
+        with open(xml_file_to_parse, "w", encoding="utf-8") as f:
+            f.write(dummy_xml_content)
+    else:
+        xml_file_to_parse = sys.argv[1]
 
-    if not create_database(db_name):
-        print("Failed to initialize the database. Exiting.", file=sys.stderr)
-        sys.exit(1)
+    parsed_data = parse_nmap_xml(xml_file_to_parse)
+    if parsed_data:
+        print(json.dumps(parsed_data, indent=2))
+    else:
+        print(f"No data parsed from '{xml_file_to_parse}'.", file=sys.stderr)
 
-    print(f"Parsing Nmap XML file: {xml_file}...")
-    scan_summary, hosts_data = parse_nmap_xml(xml_file)
+    # Example of how to access specific script data after parsing:
+    # for host in parsed_data:
+    #     if 'ip_address' in host: # Check if ip_address key exists
+    #         print(f"\nHost: {host.get('ip_address')}")
+    #         if 'ports' in host:
+    #             for port in host['ports']:
+    #                 if 'scripts' in port:
+    #                     for script in port['scripts']:
+    #                         if script['id'] == 'http-ntlm-info' and 'elements' in script:
+    #                             print(f"  Port {port.get('portid')}: NTLM Info: {script['elements']}")
+    #                         if script['id'] == 'rdp-ntlm-info' and 'elements' in script:
+    #                             print(f"  Port {port.get('portid')}: RDP NTLM Info: {script['elements']}")
+    #                         if script['id'] == 'ssl-cert' and 'tables' in script:
+    #                             for table_entry in script['tables']:
+    #                                 if 'subject' in table_entry:
+    #                                     print(f"  Port {port.get('portid')}: SSL Cert Subject: {table_entry['subject']}")
+    #         if 'host_scripts' in host:
+    #             for script in host['host_scripts']:
+    #                 if 'elements' in script:
+    #                      print(f"  Host Script '{script['id']}': {script['elements']}")
 
-    if scan_summary is None or hosts_data is None : # Check if hosts_data is None explicitly
-        print("Failed to parse XML file or no data retrieved. Exiting.", file=sys.stderr)
-        sys.exit(1)
-    
-    if not hosts_data and scan_summary is not None: # If summary is there but no hosts_data (e.g. no hosts were up)
-        print("Parsing complete. No 'up' hosts found to insert into the database.")
-        # Still insert the scan summary if desired, or exit.
-        # For now, let's allow inserting a scan record even with 0 up hosts.
-        # The insert_data function has a check for empty hosts_data as well.
-        if scan_summary.get('total_up_hosts', 0) == 0:
-             print("No up hosts were found in the scan to add to the database, but scan summary will be recorded.")
-
-
-    print(f"Parsing complete. Found {scan_summary.get('total_up_hosts', 0)} up hosts.")
-
-    print(f"Inserting data into database: {db_name}...")
-    insert_data(db_name, scan_summary, hosts_data)
-
-    print("Script finished.")
-
-if __name__ == '__main__':
-    main()
