@@ -6,6 +6,8 @@ Full Tutorial is available here - [Nmap Dashboard using Grafana](https://hackert
 
 ![Grafana Dashboard](https://hackertarget.com/images/nmap-grafana-dashboard.webp)
 ![ScanDemo](https://github.com/chromefinch/nmap-did-what/blob/master/Scanning/ScanDemo.png)
+![MultiDemo](https://github.com/chromefinch/nmap-did-what/blob/master/Scanning/Multi.png)
+![SummaryDemo](https://github.com/chromefinch/nmap-did-what/blob/master/Scanning/Summary.png)
 
 
 ## Overview
