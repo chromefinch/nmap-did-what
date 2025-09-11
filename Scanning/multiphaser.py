@@ -260,7 +260,7 @@ def run_deep_scan(ip_to_scan, output_dir_path, sanitized_scan_title_as_prefix, g
 
     port_str = ",".join(map(str, ports_to_scan))
     log.info(f"Starting deep scan on {ip_to_scan} (Scan: {sanitized_scan_title_as_prefix}) (Ports: {port_str})")
-    nmap_cmd_base = ["nmap", "-A", "-T4", "--max-retries", "3", "--max-rtt-timeout", "300ms", "--host-timeout", "8m", "-Pn", "-p", port_str, ip_to_scan, "-oA", str(nmap_output_prefix_abs)]
+    nmap_cmd_base = ["nmap", "-A", "-T4", "--max-retries", "3", "--max-rtt-timeout", "300ms", "--host-timeout", "8m", "-Pn", "-p", port_str, ip_to_scan, "-oA", file_basename]
     nmap_cmd = ["nmap", "-6"] + nmap_cmd_base[1:] if ':' in ip_to_scan else nmap_cmd_base
 
     try:
@@ -307,7 +307,7 @@ def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_a
         return ip_to_scan, port_to_scan, "skipped_exists", f"Skipped {ip_to_scan}:{port_to_scan}: Output exists"
 
     log.info(f"Starting Phase 5 script scan on {ip_to_scan}:{port_to_scan} ({service_name})")
-    nmap_cmd_base = ["nmap", "-sV", "-Pn", "-p", str(port_to_scan)] + script_cmd + [ip_to_scan, "-oA", str(nmap_output_prefix_abs)]
+    nmap_cmd_base = ["nmap", "-sV", "-Pn", "-p", str(port_to_scan)] + script_cmd + [ip_to_scan, "-oA", file_basename]
     nmap_cmd = ["nmap", "-6"] + nmap_cmd_base[1:] if ':' in ip_to_scan else nmap_cmd_base
 
     try:
@@ -352,7 +352,7 @@ def process_single_target_main_phases(target_subnet_or_ip, cli_args, main_output
         try: phase1_content = phase1_gnmap_path_abs.read_text(); log.info(f"Read existing P1 GNMAP for {target_subnet_or_ip} from {phase1_gnmap_path_abs.name}")
         except Exception as e: print_red(f"[!] Err reading existing P1 gnmap for {target_subnet_or_ip}: {e}"); log.error(f"Err read P1 {phase1_gnmap_path_abs}: {e}"); return None
     else:
-        phase1_cmd = ["nmap", "-sS", "-T4", "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "3m", "--max-scan-delay", "5ms", "--min-rate", "800", "-Pn", "-n", target_subnet_or_ip, "--top-ports", str(cli_args.top_ports), "-oA", str(phase1_nmap_output_prefix_abs)]
+        phase1_cmd = ["nmap", "-sS", "-T4", "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "3m", "--max-scan-delay", "5ms", "--min-rate", "800", "-Pn", "-n", target_subnet_or_ip, "--top-ports", str(cli_args.top_ports), "-oA", phase1_file_basename]
         try:
             run_command(phase1_cmd, cwd=str(main_output_dir_path), description=f"Phase 1: Discovery for {target_subnet_or_ip}")
             if phase1_gnmap_path_abs.exists(): phase1_content = phase1_gnmap_path_abs.read_text()
@@ -379,7 +379,7 @@ def process_single_target_main_phases(target_subnet_or_ip, cli_args, main_output
             try: phase2_gnmap_content = phase2_gnmap_path_abs.read_text()
             except Exception as e: print_red(f"[!] Err reading existing P2 gnmap for {target_subnet_or_ip}: {e}"); log.warning(f"Could not read existing P2 gnmap {phase2_gnmap_path_abs}: {e}")
         else:
-            phase2_cmd = ["nmap", "-sn", "-T4", "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "5m", "-n", target_subnet_or_ip, "-oA", str(phase2_nmap_output_prefix_abs)]
+            phase2_cmd = ["nmap", "-sn", "-T4", "--max-retries", "1", "--max-rtt-timeout", "300ms", "--host-timeout", "5m", "-n", target_subnet_or_ip, "-oA", phase2_file_basename]
             try:
                 run_command(phase2_cmd, cwd=str(main_output_dir_path), description=f"Phase 2: Ping Sweep for {target_subnet_or_ip}")
                 if phase2_gnmap_path_abs.exists(): phase2_gnmap_content = phase2_gnmap_path_abs.read_text()
@@ -446,7 +446,7 @@ def process_single_target_main_phases(target_subnet_or_ip, cli_args, main_output
                  log.error(f"P3 command for {target_subnet_or_ip} does not have a valid target IP or -iL file. Skipping P3.")
             else:
                 p3_cmd_list.extend(phase3_nmap_opts_list)
-                p3_cmd_list.extend(["-oA", str(phase3_nmap_output_prefix_abs)])
+                p3_cmd_list.extend(["-oA", phase3_file_basename])
                 final_p3_cmd = ["nmap", "-6"] + p3_cmd_list[1:] if any(':' in ip for ip in ips_for_phase3_scan) else p3_cmd_list
                 try:
                     run_command(final_p3_cmd, cwd=str(main_output_dir_path), description=f"Phase 3: Port Discovery ({cli_args.phase3}) on {len(ips_for_phase3_scan)} IPs from {target_subnet_or_ip}")
@@ -768,7 +768,7 @@ def main():
 
     if overall_phase4_target_hosts_agg:
         unique_hosts = sorted(list(set(overall_phase4_target_hosts_agg)))
-        g_p4_file = main_scan_output_dir / f"{args.scan_title}_ALL_phase4_target_hosts.txt"
+        g_p4_file = main_output_dir_path / f"{args.scan_title}_ALL_phase4_target_hosts.txt"
         try:
             with open(g_p4_file, "w") as f: f.write("\n".join(unique_hosts) + "\n")
             print_green(f"[+] {len(unique_hosts)} unique hosts for P4 (globally) saved to {g_p4_file.name}")
