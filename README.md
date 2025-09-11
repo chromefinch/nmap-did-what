@@ -39,7 +39,15 @@ Follow these steps to deploy the environment:
 git clone https://github.com/chromefinch/nmap-did-what.git
 ```
 
-2. **Parse Nmap XML output**
+2. **Run a bulk scan**
+Run the `bulkScan.py` script which expects an input list of IP's or ranges:
+
+```
+cd nmap-did-what/Scanning
+sudo python bulkScan.py
+```
+
+3. **Parse Nmap XML output**
 
 Run the `nmap-to-sqlite.py` script to parse your Nmap XML output and store the data in an SQLite database:
 
@@ -53,7 +61,7 @@ Or run the `xml_Import.sh` script to parse multiple Nmap XML's output and store 
 cd nmap-did-what/data/
 xml_Import.sh /folder/containing/nmap_output/
 ```
-3. **Start the Grafana Container**
+4. **Start the Grafana Container**
 
 Use Docker Compose to start the Grafana container:
 
@@ -62,7 +70,7 @@ cd nmap-did-what
 docker-compose up -d
 ```
 
-4. **Access Grafana**
+5. **Access Grafana**
 
 Once the container is up and running, access the Grafana dashboard through your web browser:
 
