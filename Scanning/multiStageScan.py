@@ -285,15 +285,149 @@ def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_a
     script_cmd = []
     script_name_for_file = ""
 
-    if 'ssh' in service_name:
-        script_cmd = ["--script", "ssh-auth-methods", "--script-args=ssh.user=test"]
-        script_name_for_file = "ssh-auth"
-    elif 'ssl' in service_name or 'https' in service_name:
-        script_cmd = ["--script", "ssl-enum-ciphers"]
-        script_name_for_file = "ssl-ciphers"
-    elif 'ms-wbt-server' in service_name: # RDP
-        script_cmd = ["--script", "rdp-enum-encryption"]
+    # --- HTTP & HTTPS Logic ---
+    # Check for HTTP/S first to handle the complexity of SSL vs Non-SSL
+    if 'http' in service_name or 'https' in service_name or 'ssl' in service_name:
+        # standard safe discovery scripts for any web service
+        # http-title: Gets page title (critical context)
+        # http-headers: Server headers
+        # http-methods: Supported methods (GET, POST, etc.)
+        # http-robots.txt: Checks for hidden paths
+        # http-server-header: Version info
+        base_http_scripts = "http-title,http-headers,http-methods,http-robots.txt,http-server-header"
+        
+        if 'https' in service_name or 'ssl' in service_name:
+            # Add SSL specific scripts to the base HTTP scripts
+            script_cmd = ["--script", f"{base_http_scripts},ssl-enum-ciphers,ssl-cert,ssl-date"]
+            script_name_for_file = "https-enum"
+        else:
+            script_cmd = ["--script", base_http_scripts]
+            script_name_for_file = "http-enum"
+
+    # --- SSH ---
+    elif 'ssh' in service_name:
+        # ssh2-enum-algos: enumerates supported algorithms (safe)
+        # ssh-hostkey: grabs the public key fingerprints (safe)
+        script_cmd = ["--script", "ssh-auth-methods,ssh2-enum-algos,ssh-hostkey"]
+        script_name_for_file = "ssh-enum"
+
+    # --- RDP ---
+    elif 'ms-wbt-server' in service_name or 'rdp' in service_name:
+        # rdp-ntlm-info: extracts Windows domain/hostname info (Very useful/Safe)
+        script_cmd = ["--script", "rdp-enum-encryption,rdp-ntlm-info"]
         script_name_for_file = "rdp-enum"
+
+    # --- SMB / Windows / NetBIOS ---
+    elif 'microsoft-ds' in service_name or 'netbios-ssn' in service_name or 'smb' in service_name:
+        # smb-os-discovery: Determine OS version (Safe)
+        # smb-security-mode: Message signing status (Safe)
+        # smb-protocols: Negotiated protocols (Safe)
+        script_cmd = ["--script", "smb-enum-shares,smb-ls,smb-os-discovery,smb-security-mode,smb-protocols"]
+        script_name_for_file = "smb-enum"
+
+    # --- FTP ---
+    elif 'ftp' in service_name:
+        # ftp-anon: check for anonymous login
+        # ftp-syst: gets system information
+        script_cmd = ["--script", "ftp-anon,ftp-syst"]
+        script_name_for_file = "ftp-enum"
+
+    # --- SMTP ---
+    elif 'smtp' in service_name:
+        script_cmd = ["--script", "smtp-commands,smtp-open-relay"]
+        script_name_for_file = "smtp-relay"
+
+    # --- DNS ---
+    elif 'domain' in service_name or 'dns' in service_name:
+        # dns-recursion: checks if recursion is allowed
+        # dns-service-discovery: uses DNS-SD
+        script_cmd = ["--script", "dns-recursion,dns-service-discovery"]
+        script_name_for_file = "dns-enum"
+
+    # --- Printers (HP, Xerox, Zebra, etc.) ---
+    # Captures 'jetdirect', 'printer', 'hp', 'xerox', 'zebra' in service names
+    elif any(x in service_name for x in ['printer', 'jetdirect', 'hp', 'xerox', 'zebra']):
+         # printer-info: Queries port 9100 (JetDirect) for model/status (PCL/PJL commands)
+         # Works great for HP, Xerox, and Zebra (ZPL/EPL)
+         script_cmd = ["--script", "printer-info"]
+         script_name_for_file = "printer-info"
+
+    elif 'ipp' in service_name or 'cups' in service_name:
+         # ipp-enum: Enumerates via Internet Printing Protocol
+         # cups-info: Specific to CUPS services often found on print servers
+         script_cmd = ["--script", "ipp-enum,cups-info"]
+         script_name_for_file = "ipp-info"
+
+    # --- SNMP (The "Master Key" for Printers) ---
+    elif 'snmp' in service_name:
+        # snmp-info: Extracts system description (Exact Model), location, and contact.
+        # snmp-processes: Lists running processes (often reveals firmware versions)
+        # snmp-sysdescr: Specifically targets the description field
+        script_cmd = ["--script", "snmp-info,snmp-sysdescr,snmp-processes"]
+        script_name_for_file = "snmp-info"
+
+    # --- Infrastructure / High Value Targets ---
+    elif 'ldap' in service_name:
+        # ldap-rootdse: Basic naming context info (Safe)
+        script_cmd = ["--script", "ldap-rootdse"]
+        script_name_for_file = "ldap-info"
+    
+    elif 'memcached' in service_name:
+        # memcached-info: If open, dump stats. High severity if exposed.
+        script_cmd = ["--script", "memcached-info"]
+        script_name_for_file = "memcached-info"
+        
+    elif 'elasticsearch' in service_name:
+        # elasticsearch-info: Version info is critical for CVE mapping
+        script_cmd = ["--script", "elasticsearch-info"]
+        script_name_for_file = "elasticsearch-info"
+        
+    elif 'rsync' in service_name:
+        # rsync-list-modules: Checks for anonymous file shares
+        script_cmd = ["--script", "rsync-list-modules"]
+        script_name_for_file = "rsync-modules"
+
+    elif 'ajp' in service_name:
+        # Apache JServ Protocol (often port 8009)
+        script_cmd = ["--script", "ajp-methods,ajp-headers"]
+        script_name_for_file = "ajp-info"
+
+    # --- Databases ---
+    elif 'mysql' in service_name:
+        script_cmd = ["--script", "mysql-info,mysql-empty-password"]
+        script_name_for_file = "mysql-info"
+        
+    elif 'postgresql' in service_name or 'pgsql' in service_name:
+        script_cmd = ["--script", "pgsql-info"]
+        script_name_for_file = "pgsql-info"
+        
+    elif 'ms-sql-s' in service_name or 'ms-sql' in service_name:
+        script_cmd = ["--script", "ms-sql-info,ms-sql-ntlm-info"]
+        script_name_for_file = "mssql-info"
+
+    elif 'mongodb' in service_name:
+        script_cmd = ["--script", "mongodb-info,mongodb-databases"]
+        script_name_for_file = "mongodb-info"
+        
+    elif 'redis' in service_name:
+        script_cmd = ["--script", "redis-info"]
+        script_name_for_file = "redis-info"
+
+    # --- NFS ---
+    elif 'nfs' in service_name:
+        script_cmd = ["--script", "nfs-showmount,nfs-ls,nfs-statfs"]
+        script_name_for_file = "nfs-enum"
+
+    # --- VNC ---
+    elif 'vnc' in service_name:
+        script_cmd = ["--script", "vnc-info,vnc-title"]
+        script_name_for_file = "vnc-info"
+
+    # --- Telnet ---
+    elif 'telnet' in service_name:
+        script_cmd = ["--script", "telnet-encryption,banner"]
+        script_name_for_file = "telnet-info"
+
     else:
         # This service doesn't have a targeted script, so we skip it.
         return ip_to_scan, port_to_scan, "skipped_no_script", f"No script for service '{service_name}'"
