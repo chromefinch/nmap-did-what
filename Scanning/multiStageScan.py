@@ -12,6 +12,7 @@ from functools import partial
 import logging
 import shlex
 import time
+import getpass # Added for secure password input
 
 try:
     from colorama import init, Fore, Style
@@ -97,17 +98,25 @@ def is_yes_no(value):
 def run_command(cmd_list, cwd=None, check=True, description="Running command"):
     """
     Runs a command using subprocess, logs output, and uses color.
-    `cwd` should be an absolute path or None.
-    Nmap's -oA argument should be an absolute path prefix or a simple filename if cwd is set.
+    Sanitizes output to hide passwords in logs/console.
     """
     global log
-    cmd_str = shlex.join(cmd_list)
+    
+    # --- Sanitization Logic ---
+    # Create a safe string for logging by masking passwords
+    raw_cmd_str = shlex.join(cmd_list)
+    safe_cmd_str = raw_cmd_str
+    
+    # Regex to replace various password arguments with ******
+    # Matches smbpassword=, mssql.password=, password= followed by non-space/comma chars
+    safe_cmd_str = re.sub(r'((?:smb|mssql\.|ftp\.|http\.)?password=)([^,^\s]+)', r'\1******', raw_cmd_str)
+
     print_blue(f"[+] {description}")
-    print_yellow(f"    Command: {cmd_str}")
+    print_yellow(f"    Command: {safe_cmd_str}")
 
     # Ensure cwd is an absolute path string for subprocess and logging
     effective_cwd_path = Path(cwd).resolve() if cwd else Path.cwd()
-    log.info(f"Running command: {cmd_str} in {effective_cwd_path}")
+    log.info(f"Running command: {safe_cmd_str} in {effective_cwd_path}")
 
     try:
         process = subprocess.Popen(
@@ -125,7 +134,7 @@ def run_command(cmd_list, cwd=None, check=True, description="Running command"):
             else: log.warning(f"Command stderr (Return Code 0):\n{stderr.strip()}")
 
         if check and process.returncode != 0:
-            log.error(f"Command failed with exit code {process.returncode}: {cmd_str}")
+            log.error(f"Command failed with exit code {process.returncode}: {safe_cmd_str}")
             error_details = f"Stderr:\n{stderr.strip()}" if stderr.strip() else "No stderr."
             log_file_path_msg = ""
             if log and log.handlers and hasattr(log.handlers[0], 'baseFilename'):
@@ -136,14 +145,14 @@ def run_command(cmd_list, cwd=None, check=True, description="Running command"):
             raise subprocess.CalledProcessError(process.returncode, cmd_list, output=stdout, stderr=error_details)
 
         print_green(f"    Command completed successfully.")
-        log.info(f"Command finished successfully: {cmd_str}")
+        log.info(f"Command finished successfully: {safe_cmd_str}")
         return stdout, stderr
     except FileNotFoundError:
         log.error(f"Error: Command not found: {cmd_list[0]}")
         print_red(f"    Error: Command {cmd_list[0]} not found. Is nmap installed and in PATH?")
         raise
     except Exception as e:
-        log.exception(f"An unexpected error occurred while running command '{cmd_str}'")
+        log.exception(f"An unexpected error occurred while running command '{safe_cmd_str}'")
         print_red(f"    An unexpected error occurred: {e}")
         raise
 
@@ -273,10 +282,11 @@ def run_deep_scan(ip_to_scan, output_dir_path, sanitized_scan_title_as_prefix, g
     except subprocess.CalledProcessError as e: return ip_to_scan, "failed", f"Failed {ip_to_scan} (Code: {e.returncode})"
     except Exception as e: log.exception(f"Unexpected error during deep scan for {ip_to_scan}"); return ip_to_scan, "failed", f"Failed {ip_to_scan} (Error: {type(e).__name__})"
 
-def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_as_prefix):
+def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_as_prefix, smb_creds=None):
     """
     Worker function for running a single Phase 5 NSE script scan.
     task_details is a tuple: (ip, port, service_name)
+    smb_creds is a dict: {'username': '', 'password': '', 'domain': ''} (Optional)
     """
     global log
     ip_to_scan, port_to_scan, service_name = task_details
@@ -286,18 +296,10 @@ def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_a
     script_name_for_file = ""
 
     # --- HTTP & HTTPS Logic ---
-    # Check for HTTP/S first to handle the complexity of SSL vs Non-SSL
     if 'http' in service_name or 'https' in service_name or 'ssl' in service_name:
-        # standard safe discovery scripts for any web service
-        # http-title: Gets page title (critical context)
-        # http-headers: Server headers
-        # http-methods: Supported methods (GET, POST, etc.)
-        # http-robots.txt: Checks for hidden paths
-        # http-server-header: Version info
         base_http_scripts = "http-title,http-headers,http-methods,http-robots.txt,http-server-header"
         
         if 'https' in service_name or 'ssl' in service_name:
-            # Add SSL specific scripts to the base HTTP scripts
             script_cmd = ["--script", f"{base_http_scripts},ssl-enum-ciphers,ssl-cert,ssl-date"]
             script_name_for_file = "https-enum"
         else:
@@ -306,14 +308,11 @@ def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_a
 
     # --- SSH ---
     elif 'ssh' in service_name:
-        # ssh2-enum-algos: enumerates supported algorithms (safe)
-        # ssh-hostkey: grabs the public key fingerprints (safe)
         script_cmd = ["--script", "ssh-auth-methods,ssh2-enum-algos,ssh-hostkey"]
         script_name_for_file = "ssh-enum"
 
     # --- RDP ---
     elif 'ms-wbt-server' in service_name or 'rdp' in service_name:
-        # rdp-ntlm-info: extracts Windows domain/hostname info (Very useful/Safe)
         script_cmd = ["--script", "rdp-enum-encryption,rdp-ntlm-info"]
         script_name_for_file = "rdp-enum"
 
@@ -322,13 +321,24 @@ def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_a
         # smb-os-discovery: Determine OS version (Safe)
         # smb-security-mode: Message signing status (Safe)
         # smb-protocols: Negotiated protocols (Safe)
+        # smb-enum-shares: Lists shares
+        # smb-ls: Lists files (Needs auth usually)
         script_cmd = ["--script", "smb-enum-shares,smb-ls,smb-os-discovery,smb-security-mode,smb-protocols"]
         script_name_for_file = "smb-enum"
 
+        # INJECT CREDENTIALS IF PROVIDED
+        if smb_creds and smb_creds.get('username'):
+            # Construct the script arguments string
+            auth_args = f"smbusername={smb_creds['username']},smbpassword={smb_creds['password']}"
+            if smb_creds.get('domain'):
+                auth_args += f",smbdomain={smb_creds['domain']}"
+            
+            # Add to script command
+            script_cmd.extend(["--script-args", auth_args])
+            log.debug(f"Injected SMB credentials for {ip_to_scan}")
+
     # --- FTP ---
     elif 'ftp' in service_name:
-        # ftp-anon: check for anonymous login
-        # ftp-syst: gets system information
         script_cmd = ["--script", "ftp-anon,ftp-syst"]
         script_name_for_file = "ftp-enum"
 
@@ -339,56 +349,41 @@ def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_a
 
     # --- DNS ---
     elif 'domain' in service_name or 'dns' in service_name:
-        # dns-recursion: checks if recursion is allowed
-        # dns-service-discovery: uses DNS-SD
         script_cmd = ["--script", "dns-recursion,dns-service-discovery"]
         script_name_for_file = "dns-enum"
 
     # --- Printers (HP, Xerox, Zebra, etc.) ---
-    # Captures 'jetdirect', 'printer', 'hp', 'xerox', 'zebra' in service names
     elif any(x in service_name for x in ['printer', 'jetdirect', 'hp', 'xerox', 'zebra']):
-         # printer-info: Queries port 9100 (JetDirect) for model/status (PCL/PJL commands)
-         # Works great for HP, Xerox, and Zebra (ZPL/EPL)
          script_cmd = ["--script", "printer-info"]
          script_name_for_file = "printer-info"
 
     elif 'ipp' in service_name or 'cups' in service_name:
-         # ipp-enum: Enumerates via Internet Printing Protocol
-         # cups-info: Specific to CUPS services often found on print servers
          script_cmd = ["--script", "ipp-enum,cups-info"]
          script_name_for_file = "ipp-info"
 
-    # --- SNMP (The "Master Key" for Printers) ---
+    # --- SNMP ---
     elif 'snmp' in service_name:
-        # snmp-info: Extracts system description (Exact Model), location, and contact.
-        # snmp-processes: Lists running processes (often reveals firmware versions)
-        # snmp-sysdescr: Specifically targets the description field
         script_cmd = ["--script", "snmp-info,snmp-sysdescr,snmp-processes"]
         script_name_for_file = "snmp-info"
 
     # --- Infrastructure / High Value Targets ---
     elif 'ldap' in service_name:
-        # ldap-rootdse: Basic naming context info (Safe)
         script_cmd = ["--script", "ldap-rootdse"]
         script_name_for_file = "ldap-info"
     
     elif 'memcached' in service_name:
-        # memcached-info: If open, dump stats. High severity if exposed.
         script_cmd = ["--script", "memcached-info"]
         script_name_for_file = "memcached-info"
         
     elif 'elasticsearch' in service_name:
-        # elasticsearch-info: Version info is critical for CVE mapping
         script_cmd = ["--script", "elasticsearch-info"]
         script_name_for_file = "elasticsearch-info"
         
     elif 'rsync' in service_name:
-        # rsync-list-modules: Checks for anonymous file shares
         script_cmd = ["--script", "rsync-list-modules"]
         script_name_for_file = "rsync-modules"
 
     elif 'ajp' in service_name:
-        # Apache JServ Protocol (often port 8009)
         script_cmd = ["--script", "ajp-methods,ajp-headers"]
         script_name_for_file = "ajp-info"
 
@@ -404,6 +399,18 @@ def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_a
     elif 'ms-sql-s' in service_name or 'ms-sql' in service_name:
         script_cmd = ["--script", "ms-sql-info,ms-sql-ntlm-info"]
         script_name_for_file = "mssql-info"
+
+        # INJECT CREDENTIALS IF PROVIDED FOR MSSQL
+        if smb_creds and smb_creds.get('username'):
+            # Construct the script arguments string for MSSQL
+            # Nmap uses mssql.username, mssql.password, mssql.domain
+            auth_args = f"mssql.username={smb_creds['username']},mssql.password={smb_creds['password']}"
+            if smb_creds.get('domain'):
+                auth_args += f",mssql.domain={smb_creds['domain']}"
+            
+            # Add to script command
+            script_cmd.extend(["--script-args", auth_args])
+            log.debug(f"Injected MSSQL credentials for {ip_to_scan}")
 
     elif 'mongodb' in service_name:
         script_cmd = ["--script", "mongodb-info,mongodb-databases"]
@@ -451,12 +458,9 @@ def run_phase5_script_scan(task_details, output_dir_path, sanitized_scan_title_a
         log.error(f"P5 script scan for {ip_to_scan}:{port_to_scan} failed: {e}")
         return ip_to_scan, port_to_scan, "failed", f"Failed {ip_to_scan}:{port_to_scan} (Error: {type(e).__name__})"
 
-def process_single_target(target_subnet_or_ip, cli_args, main_output_dir_path, current_log_instance):
+def process_single_target(target_subnet_or_ip, cli_args, main_output_dir_path, current_log_instance, smb_creds=None):
     """
     Processes a single target (subnet or IP) through all scanning phases.
-    All Nmap output files are written to `main_output_dir_path`.
-    `main_output_dir_path` is a Path object.
-    Returns a dictionary with lists of IPs/ports for global aggregation.
     """
     global log
     log = current_log_instance
@@ -708,7 +712,18 @@ def process_single_target(target_subnet_or_ip, cli_args, main_output_dir_path, c
                     services_found = parse_gnmap_ports_services_for_host(content, ip_addr)
                     for port, service in services_found:
                         # Add task if service matches our criteria
-                        if any(s in service for s in ['ssh', 'ssl', 'https', 'ms-wbt-server']):
+                        # Expanded list to ensure all supported services trigger Phase 5
+                        target_services = [
+                            'ssh', 'ssl', 'http', 'https', 
+                            'ms-wbt-server', 'rdp', 
+                            'microsoft-ds', 'netbios-ssn', 'smb', 
+                            'ftp', 'smtp', 'domain', 'dns', 
+                            'printer', 'jetdirect', 'hp', 'xerox', 'zebra', 'ipp', 'cups', 
+                            'snmp', 'ldap', 'memcached', 'elasticsearch', 'rsync', 'ajp', 
+                            'mysql', 'postgresql', 'pgsql', 'ms-sql-s', 'ms-sql', 'mongodb', 'redis', 
+                            'nfs', 'vnc', 'telnet'
+                        ]
+                        if any(s in service.lower() for s in target_services):
                             phase5_tasks.append((ip_addr, port, service))
                 except Exception as e:
                     log.error(f"P5 prep: Could not read/parse P4 gnmap {p4_gnmap_path.name} for {ip_addr}: {e}")
@@ -724,7 +739,8 @@ def process_single_target(target_subnet_or_ip, cli_args, main_output_dir_path, c
 
             scan_func_p5 = partial(run_phase5_script_scan,
                                      output_dir_path=main_output_dir_path,
-                                     sanitized_scan_title_as_prefix=sanitized_scan_title)
+                                     sanitized_scan_title_as_prefix=sanitized_scan_title,
+                                     smb_creds=smb_creds) # Pass credentials to the worker
 
             p5_summary_this_target = {'success': 0, 'skipped_exists': 0, 'skipped_no_script': 0, 'failed': 0}
             with ThreadPoolExecutor(max_workers=cli_args.parallel_scans) as executor:
@@ -775,6 +791,12 @@ def main():
     parser.add_argument("-o", "--output-dir", default=".", help="Parent directory for scan results (the --scan-title folder will be created here).")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging (DEBUG level).")
     parser.add_argument("-f", "--force-overwrite", action="store_true", help="Force re-running scans even if output files exist (applies per phase file).")
+    
+    # SMB Credentials Arguments
+    parser.add_argument("--smb-user", help="Username for SMB authenticated scans (optional).")
+    parser.add_argument("--smb-pass", help="Password for SMB authenticated scans (optional). Warning: visible in history.")
+    parser.add_argument("--smb-domain", help="Domain for SMB authenticated scans (optional).")
+
     args = parser.parse_args()
 
     try:
@@ -808,6 +830,23 @@ def main():
     skip_phase5_default = 'Y' if args.skip_phase5 else 'N'
     args.skip_phase5 = prompt_user("Skip Phase 5 Targeted Script Scans (ssh, ssl, rdp)? (y/N)", default=skip_phase5_default, validation_func=is_yes_no).lower().startswith('y')
     
+    # --- SMB Auth Prompt Logic ---
+    smb_creds = {'username': None, 'password': None, 'domain': None}
+    
+    # Check if user provided via CLI
+    if args.smb_user:
+        smb_creds['username'] = args.smb_user
+        smb_creds['password'] = args.smb_pass if args.smb_pass else getpass.getpass(f"Enter SMB Password for {args.smb_user}: ")
+        smb_creds['domain'] = args.smb_domain
+    elif not args.skip_phase5:
+        # Ask interactively if not skipped and not provided via CLI
+        ask_auth = input(f"Do you want to provide SMB credentials for authenticated scans (optional)? (y/N) [N]: ").strip()
+        if ask_auth.lower().startswith('y'):
+            smb_creds['username'] = input("SMB Username: ").strip()
+            if smb_creds['username']:
+                smb_creds['password'] = getpass.getpass("SMB Password: ")
+                smb_creds['domain'] = input("SMB Domain (optional): ").strip()
+
     args.parallel_scans = prompt_user(f"Parallel scans (Phase 4 & 5) per subnet:", default=args.parallel_scans, validation_func=is_positive_int)
     print(f"Base output directory for results: {Path(args.output_dir).resolve()}")
     print(f"Force overwrite existing files: {'Yes' if args.force_overwrite else 'No'}")
@@ -863,7 +902,8 @@ def main():
             current_target_subnet_or_ip,
             args,
             main_scan_output_dir,
-            log
+            log,
+            smb_creds=smb_creds # Pass creds to processing function
         )
 
         if target_processing_results:
