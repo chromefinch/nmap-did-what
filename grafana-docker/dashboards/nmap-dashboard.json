@@ -18,7 +18,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
   "links": [],
   "panels": [
     {
@@ -37,7 +36,7 @@
             "steps": [
               {
                 "color": "#4ecda7",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -60,6 +59,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -71,7 +71,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -111,7 +111,32 @@
           },
           "mappings": []
         },
-        "overrides": []
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "count"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 7,
@@ -138,12 +163,14 @@
           "fields": "",
           "values": true
         },
+        "sort": "desc",
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -206,12 +233,14 @@
           "fields": "",
           "values": true
         },
+        "sort": "desc",
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -246,6 +275,9 @@
             "cellOptions": {
               "type": "auto"
             },
+            "footer": {
+              "reducers": []
+            },
             "inspect": false
           },
           "mappings": [],
@@ -254,7 +286,7 @@
             "steps": [
               {
                 "color": "#4ecda7",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -290,14 +322,6 @@
       "id": 4,
       "options": {
         "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
         "showHeader": true,
         "sortBy": [
           {
@@ -306,7 +330,7 @@
           }
         ]
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -342,7 +366,7 @@
             "steps": [
               {
                 "color": "#4ecda7",
-                "value": null
+                "value": 0
               },
               {
                 "color": "light-purple",
@@ -365,6 +389,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -376,7 +401,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -412,7 +437,7 @@
             "steps": [
               {
                 "color": "#4ecda7",
-                "value": null
+                "value": 0
               },
               {
                 "color": "light-purple",
@@ -435,6 +460,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -446,7 +472,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -503,7 +529,7 @@
             "steps": [
               {
                 "color": "#4ecda7",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -537,6 +563,7 @@
         "showValue": "auto",
         "stacking": "none",
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         },
@@ -544,7 +571,7 @@
         "xTickLabelRotation": -45,
         "xTickLabelSpacing": 0
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -580,7 +607,7 @@
             "steps": [
               {
                 "color": "#4ecda7",
-                "value": null
+                "value": 0
               },
               {
                 "color": "light-purple",
@@ -603,6 +630,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -614,7 +642,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -650,6 +678,9 @@
               "type": "auto"
             },
             "filterable": true,
+            "footer": {
+              "reducers": []
+            },
             "inspect": false
           },
           "mappings": [],
@@ -658,7 +689,7 @@
             "steps": [
               {
                 "color": "#4ecda7",
-                "value": null
+                "value": 0
               },
               {
                 "color": "light-purple",
@@ -787,18 +818,10 @@
       "id": 6,
       "options": {
         "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
         "showHeader": true,
         "sortBy": []
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -837,6 +860,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "bars",
             "fillOpacity": 0,
             "gradientMode": "hue",
@@ -853,6 +877,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -868,7 +893,7 @@
             "steps": [
               {
                 "color": "#4ecda7",
-                "value": null
+                "value": 0
               },
               {
                 "color": "light-purple",
@@ -907,11 +932,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -936,7 +962,6 @@
         "type": "frser-sqlite-datasource",
         "uid": "P2D2EEF3E092AF52B"
       },
-      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -948,7 +973,7 @@
             "steps": [
               {
                 "color": "#4ecda7",
-                "value": null
+                "value": 0
               },
               {
                 "color": "light-purple",
@@ -968,6 +993,12 @@
       "id": 15,
       "options": {
         "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
         "maxVizHeight": 300,
         "minVizHeight": 16,
         "minVizWidth": 8,
@@ -982,7 +1013,7 @@
         "sizing": "auto",
         "valueMode": "color"
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -1017,6 +1048,9 @@
             "cellOptions": {
               "type": "auto"
             },
+            "footer": {
+              "reducers": []
+            },
             "inspect": false
           },
           "mappings": [],
@@ -1024,7 +1058,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -1105,14 +1140,6 @@
       "id": 1,
       "options": {
         "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
         "showHeader": true,
         "sortBy": [
           {
@@ -1121,7 +1148,7 @@
           }
         ]
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -1156,6 +1183,9 @@
             "cellOptions": {
               "type": "auto"
             },
+            "footer": {
+              "reducers": []
+            },
             "inspect": false
           },
           "mappings": [],
@@ -1163,7 +1193,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "#4ecda7"
+                "color": "#4ecda7",
+                "value": 0
               },
               {
                 "color": "light-purple",
@@ -1220,18 +1251,6 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "nmap_version"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 109
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
               "options": "total_open_ports"
             },
             "properties": [
@@ -1268,27 +1287,19 @@
       "id": 14,
       "options": {
         "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
         "showHeader": true,
         "sortBy": []
       },
-      "pluginVersion": "10.4.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
             "uid": "P2D2EEF3E092AF52B"
           },
-          "queryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  nmap_version,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000",
+          "queryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000",
           "queryType": "table",
-          "rawQueryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  nmap_version,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000",
+          "rawQueryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -1298,10 +1309,182 @@
       ],
       "title": "Scans Loaded",
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "P2D2EEF3E092AF52B"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "id": 16,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "P2D2EEF3E092AF52B"
+          },
+          "queryText": "SELECT h.ip, p.port, p.service_info AS \"Server/Version\", p.http_title AS \"HTTP Title\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.http_title != '' OR p.service_info LIKE '%http%' OR p.service_info LIKE '%ssl%')\nAND h.start_time >= $__from AND h.end_time < $__to\nORDER BY h.ip, p.port",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, p.port, p.service_info AS \"Server/Version\", p.http_title AS \"HTTP Title\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.http_title != '' OR p.service_info LIKE '%http%' OR p.service_info LIKE '%ssl%')\nAND h.start_time >= $__from AND h.end_time < $__to\nORDER BY h.ip, p.port",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "HTTP Servers & Titles",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "P2D2EEF3E092AF52B"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "id": 17,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "P2D2EEF3E092AF52B"
+          },
+          "queryText": "SELECT h.ip, p.port, p.ssl_common_name AS \"Common Name\", p.ssl_issuer AS \"Issuer\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.ssl_common_name != '' OR p.ssl_issuer != '')\nAND h.start_time >= $__from AND h.end_time < $__to\nORDER BY h.ip, p.port",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, p.port, p.ssl_common_name AS \"Common Name\", p.ssl_issuer AS \"Issuer\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.ssl_common_name != '' OR p.ssl_issuer != '')\nAND h.start_time >= $__from AND h.end_time < $__to\nORDER BY h.ip, p.port",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "SSL/TLS Certificates",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "P2D2EEF3E092AF52B"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 58
+      },
+      "id": 18,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "P2D2EEF3E092AF52B"
+          },
+          "queryText": "SELECT h.ip, p.port, p.service_info AS \"Service\", p.script_outputs AS \"NSE Script Output\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND p.script_outputs IS NOT NULL AND p.script_outputs != ''\nAND h.start_time >= $__from AND h.end_time < $__to\nORDER BY h.ip, p.port",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, p.port, p.service_info AS \"Service\", p.script_outputs AS \"NSE Script Output\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND p.script_outputs IS NOT NULL AND p.script_outputs != ''\nAND h.start_time >= $__from AND h.end_time < $__to\nORDER BY h.ip, p.port",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Phase 5 NSE Script Outputs (Detailed Enumeration)",
+      "type": "table"
     }
   ],
+  "preload": false,
   "refresh": "",
-  "schemaVersion": 39,
+  "schemaVersion": 42,
   "tags": [],
   "templating": {
     "list": []
@@ -1314,6 +1497,6 @@
   "timezone": "browser",
   "title": "Nmap Dashboard",
   "uid": "cdikljcadaf40c",
-  "version": 58,
+  "version": 1,
   "weekStart": ""
 }
