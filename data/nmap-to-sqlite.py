@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import json
 import sys # For accessing command-line arguments
+import sqlite3 # Added for database interactions
 
 def _parse_table_node(table_node):
     """
@@ -121,10 +122,17 @@ def parse_nmap_xml(xml_file):
         root = tree.getroot()
     except ET.ParseError as e:
         print(f"Error parsing XML file '{xml_file}': {e}", file=sys.stderr)
-        return []
+        return None
     except FileNotFoundError:
         print(f"Error: File not found: '{xml_file}'", file=sys.stderr)
-        return []
+        return None
+
+    # --- Extract metadata needed for deduplication ---
+    scan_data = {
+        'start_time': root.get('start'),
+        'command_line': root.get('args'),
+        'hosts': []
+    }
 
     hosts_data = []
 
@@ -141,8 +149,6 @@ def parse_nmap_xml(xml_file):
             }
 
         # --- Address Information (IPv4, IPv6, MAC) ---
-        # Nmap typically provides one primary address type used for the scan (e.g. ipv4)
-        # and might list others if available (e.g. MAC if on local network)
         addresses = []
         for addr_node in host_node.findall('address'):
             addr_info = {
@@ -154,11 +160,9 @@ def parse_nmap_xml(xml_file):
             addresses.append(addr_info)
         if addresses:
             host_info['addresses'] = addresses
-            # For convenience, add top-level ip_address if an IPv4 or IPv6 is primary
             primary_ip = next((a['address'] for a in addresses if a['type'] in ['ipv4', 'ipv6']), None)
             if primary_ip:
                  host_info['ip_address'] = primary_ip
-
 
         # --- Hostnames ---
         hostnames_node = host_node.find('hostnames')
@@ -304,163 +308,169 @@ def parse_nmap_xml(xml_file):
             }
             host_info['times'] = {k:v for k,v in host_info['times'].items() if v is not None}
 
-
         if host_info: # Only add if we have gathered some information for the host
             hosts_data.append(host_info)
 
-    return hosts_data
+    scan_data['hosts'] = hosts_data
+    return scan_data
+
+def prep_database(db_path="nmap_results.db"):
+    """
+    Initializes the SQLite database with the required schema.
+    Can be run before the Docker container starts to prevent lock issues.
+    """
+    print(f"[PREP] Initializing database schema in '{db_path}'...")
+    conn = sqlite3.connect(db_path)
+    conn.execute('PRAGMA journal_mode=WAL;')
+    cursor = conn.cursor()
+    cursor.executescript('''
+        CREATE TABLE IF NOT EXISTS scans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            start_time TEXT,
+            command_line TEXT,
+            import_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS hosts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id INTEGER,
+            ip_address TEXT,
+            status TEXT,
+            FOREIGN KEY(scan_id) REFERENCES scans(id)
+        );
+        CREATE TABLE IF NOT EXISTS ports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            host_id INTEGER,
+            portid TEXT,
+            protocol TEXT,
+            state TEXT,
+            service_name TEXT,
+            FOREIGN KEY(host_id) REFERENCES hosts(id)
+        );
+    ''')
+    conn.commit()
+    conn.close()
+    print("[PREP] Database prepared successfully.")
+
+def import_to_sqlite(parsed_data, db_path="nmap_results.db"):
+    """
+    Connects to SQLite, checks for duplicate scans, and inserts data if it's new.
+    """
+    if not parsed_data:
+        return
+
+    start_time = parsed_data.get('start_time')
+    command_line = parsed_data.get('command_line')
+
+    if not start_time or not command_line:
+        print("Warning: 'start_time' or 'command_line' missing from XML. Cannot safely deduplicate.")
+        print("Skipping import to prevent bad data.")
+        return
+
+    # Connect to Database with a timeout to prevent "database is locked" errors
+    # timeout=15.0 tells SQLite to wait up to 15 seconds for locks to clear
+    conn = sqlite3.connect(db_path, timeout=15.0)
+    
+    # Enable Write-Ahead Logging (WAL) for significantly better concurrency
+    conn.execute('PRAGMA journal_mode=WAL;')
+    
+    cursor = conn.cursor()
+
+    # 1. Initialize schema (Creates tables if they do not exist)
+    cursor.executescript('''
+        CREATE TABLE IF NOT EXISTS scans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            start_time TEXT,
+            command_line TEXT,
+            import_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS hosts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id INTEGER,
+            ip_address TEXT,
+            status TEXT,
+            FOREIGN KEY(scan_id) REFERENCES scans(id)
+        );
+        CREATE TABLE IF NOT EXISTS ports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            host_id INTEGER,
+            portid TEXT,
+            protocol TEXT,
+            state TEXT,
+            service_name TEXT,
+            FOREIGN KEY(host_id) REFERENCES hosts(id)
+        );
+    ''')
+
+    # 2. DEDUPLICATION CHECK
+    # Search for start_time and command_line before proceeding
+    cursor.execute(
+        "SELECT id FROM scans WHERE start_time = ? AND command_line = ?", 
+        (start_time, command_line)
+    )
+    existing_scan = cursor.fetchone()
+
+    if existing_scan:
+        print(f"[SKIP] Duplicate scan detected. (Start Time: {start_time}). Skipping import.")
+        conn.close()
+        return  # Safely exit the function
+
+    # 3. INSERT STATEMENTS
+    print(f"[IMPORT] New scan detected (Start Time: {start_time}). Inserting into database...")
+    
+    # Insert Scan
+    cursor.execute(
+        "INSERT INTO scans (start_time, command_line) VALUES (?, ?)", 
+        (start_time, command_line)
+    )
+    scan_id = cursor.lastrowid # Get the newly generated scan ID
+
+    # Insert Hosts and Ports
+    for host in parsed_data.get('hosts', []):
+        ip_address = host.get('ip_address', 'Unknown')
+        status = host.get('status', {}).get('state', 'Unknown')
+        
+        cursor.execute(
+            "INSERT INTO hosts (scan_id, ip_address, status) VALUES (?, ?, ?)", 
+            (scan_id, ip_address, status)
+        )
+        host_id = cursor.lastrowid # Get the newly generated host ID
+
+        for port in host.get('ports', []):
+            portid = port.get('portid')
+            protocol = port.get('protocol')
+            state = port.get('state')
+            service_name = port.get('service', {}).get('name', 'Unknown')
+            
+            cursor.execute(
+                "INSERT INTO ports (host_id, portid, protocol, state, service_name) VALUES (?, ?, ?, ?, ?)", 
+                (host_id, portid, protocol, state, service_name)
+            )
+
+    conn.commit()
+    conn.close()
+    print("[SUCCESS] Import complete.\n")
+
 
 # --- Main execution example ---
 if __name__ == "__main__":
+    # 1. Check if the user provided enough arguments
     if len(sys.argv) < 2:
-        print("Usage: python nmap_parser.py <nmap_output.xml>", file=sys.stderr)
-        # Create a dummy XML file for testing if no argument is provided
-        print("No XML file provided. Creating and using 'dummy_nmap_output.xml' for demonstration.", file=sys.stderr)
-        dummy_xml_content = """
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE nmaprun>
-<nmaprun scanner="nmap" args="nmap -A -sV -T4 scanme.nmap.org example.com" start="1684190400" startstr="Wed May 15 16:00:00 2024" version="7.92" xmloutputversion="1.05">
-  <scaninfo type="syn" protocol="tcp" numservices="1000" services="1-1024"/>
-  <verbose level="0"/>
-  <debugging level="0"/>
-  <host starttime="1684190401" endtime="1684190405">
-    <status state="up" reason="syn-ack" reason_ttl="0"/>
-    <address addr="45.33.32.156" addrtype="ipv4"/>
-    <hostnames>
-      <hostname name="scanme.nmap.org" type="user"/>
-      <hostname name="scanme.nmap.org" type="PTR"/>
-    </hostnames>
-    <ports>
-      <port protocol="tcp" portid="22">
-        <state state="open" reason="syn-ack" reason_ttl="0"/>
-        <service name="ssh" product="OpenSSH" version="8.2p1 Ubuntu 4ubuntu0.5" extrainfo="Ubuntu Linux; protocol 2.0" ostype="Linux" method="probed" conf="10">
-          <cpe>cpe:/a:openssh:openssh:8.2p1</cpe>
-          <cpe>cpe:/o:linux:linux_kernel</cpe>
-        </service>
-        <script id="ssh-hostkey" output="RSA key fingerprint is SHA256:KEYDATA...">
-          <elem key="type">ssh-rsa</elem>
-          <elem key="key">AAAAB3NzaC1yc2EAAAADAQABAAABAQ...</elem>
-          <elem key="bits">2048</elem>
-          <elem key="fingerprint">abcdef1234567890</elem>
-        </script>
-      </port>
-      <port protocol="tcp" portid="80">
-        <state state="open" reason="syn-ack" reason_ttl="0"/>
-        <service name="http" product="Apache httpd" version="2.4.41" extrainfo="(Ubuntu)" method="probed" conf="10">
-          <cpe>cpe:/a:apache:http_server:2.4.41</cpe>
-        </service>
-        <script id="http-title" output="Go ahead and ScanMe!"><elem key="title">Go ahead and ScanMe!</elem></script>
-        <script id="http-server-header" output="Apache/2.4.41 (Ubuntu)"><elem>Apache/2.4.41 (Ubuntu)</elem></script>
-        <script id="http-methods" output="GET HEAD POST OPTIONS">
-            <table> <elem key="GET">1</elem>
-                <elem key="HEAD">1</elem>
-                <elem key="POST">1</elem>
-                <elem key="OPTIONS">1</elem>
-            </table>
-            <table key="potentially_dangerous_methods"> <elem key="TRACE">1</elem>
-            </table>
-        </script>
-        <script id="http-ntlm-info" output="target_name: SCANME_WEB&#xa;netbios_domain_name: WORKGROUP">
-          <elem key="TargetName">SCANME_WEB</elem>
-          <elem key="NetBIOSDomainName">WORKGROUP</elem>
-          <elem key="NetBIOSComputerName">SCANME_WEB_NB</elem>
-          <elem key="DNSDomainName">scanme.nmap.org</elem>
-          <elem key="DNSComputerName">scanme.nmap.org</elem>
-          <elem key="ProductVersion">6.0</elem>
-        </script>
-      </port>
-      <port protocol="tcp" portid="443">
-        <state state="open" reason="syn-ack" reason_ttl="0"/>
-        <service name="https" product="Apache httpd" version="2.4.41" extrainfo="(Ubuntu)" tunnel="ssl" method="probed" conf="10">
-            <cpe>cpe:/a:apache:http_server:2.4.41</cpe>
-        </service>
-        <script id="ssl-cert" output="Subject: commonName=scanme.nmap.org">
-            <table key="subject">
-                <elem key="commonName">scanme.nmap.org</elem>
-            </table>
-            <table key="issuer">
-                <elem key="organizationalUnitName">Let's Encrypt</elem>
-                <elem key="commonName">R3</elem>
-            </table>
-            <elem key="pem">-BEGIN CERTIFICATE-...</elem>
-        </script>
-        <script id="ssl-enum-ciphers" output="...">
-            <table key="TLSv1.2">
-                <table key="ciphers">
-                    <elem key="name">TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256</elem>
-                    <elem key="strength">A</elem>
-                </table>
-                <elem key="compressors">NULL</elem>
-                <table key="server_preference">
-                     <elem key="order">server</elem>
-                </table>
-            </table>
-        </script>
-      </port>
-      <port protocol="tcp" portid="3389"> <state state="filtered" reason="no-response" reason_ttl="0"/>
-        <service name="ms-wbt-server" method="table" conf="3"/>
-        <script id="rdp-ntlm-info" output="NTLMSSP (Windows Server 2019 Standard 17763)">
-            <elem key="Target_Name">RDS-SERVER</elem>
-            <elem key="NetBIOS_Domain_Name">CORP</elem>
-            <elem key="NetBIOS_Computer_Name">RDS-SERVER</elem>
-            <elem key="DNS_Domain_Name">corp.example.com</elem>
-            <elem key="DNS_Computer_Name">rds-server.corp.example.com</elem>
-            <elem key="Product_Version">10.0.17763</elem>
-        </script>
-      </port>
-    </ports>
-    <os>
-      <portused state="open" proto="tcp" portid="22"/>
-      <osmatch name="Linux 5.X" accuracy="100"><osclass type="general purpose" vendor="Linux" osfamily="Linux" osgen="5.X" accuracy="100"/></osmatch>
-    </os>
-    <hostscript>
-        <script id="smb-os-discovery" output="Windows Server 2019 Standard 17763">
-            <elem key="os">Windows Server 2019 Standard 17763</elem>
-            <elem key="lanmanager_dialect">SMB 2.02/2.10</elem>
-            <elem key="server_nt_status">0x00000000</elem>
-        </script>
-    </hostscript>
-    <trace port="80" proto="tcp">
-      <hop ttl="1" rtt="1.23" ipaddr="192.168.0.1" host="router.example.com"/>
-    </trace>
-    <times srtt="12345" rttvar="6789" to="100000"/>
-  </host>
-  <runstats>
-    <finished time="1684190410" timestr="Wed May 15 16:00:10 2024" elapsed="10" summary="Nmap done; 1 IP address (1 host up) scanned in 10.00 seconds" exit="success"/>
-    <hosts up="1" down="0" total="1"/>
-  </runstats>
-</nmaprun>
-"""
-        xml_file_to_parse = "dummy_nmap_output.xml"
-        with open(xml_file_to_parse, "w", encoding="utf-8") as f:
-            f.write(dummy_xml_content)
-    else:
-        xml_file_to_parse = sys.argv[1]
+        print("Usage: python nmap-to-sqlite.py <nmap_output.xml>", file=sys.stderr)
+        print("       python nmap-to-sqlite.py --prep", file=sys.stderr)
+        sys.exit(1)
 
+    # 2. Handle the database preparation flag
+    if sys.argv[1] == '--prep':
+        prep_database("nmap_results.db")
+        sys.exit(0)
+
+    # 3. Handle standard XML parsing and importing
+    xml_file_to_parse = sys.argv[1]
     parsed_data = parse_nmap_xml(xml_file_to_parse)
+    
     if parsed_data:
-        print(json.dumps(parsed_data, indent=2))
+        # Run the SQLite Import and Deduplication logic
+        db_filename = "nmap_results.db"
+        import_to_sqlite(parsed_data, db_filename)
     else:
         print(f"No data parsed from '{xml_file_to_parse}'.", file=sys.stderr)
-
-    # Example of how to access specific script data after parsing:
-    # for host in parsed_data:
-    #     if 'ip_address' in host: # Check if ip_address key exists
-    #         print(f"\nHost: {host.get('ip_address')}")
-    #         if 'ports' in host:
-    #             for port in host['ports']:
-    #                 if 'scripts' in port:
-    #                     for script in port['scripts']:
-    #                         if script['id'] == 'http-ntlm-info' and 'elements' in script:
-    #                             print(f"  Port {port.get('portid')}: NTLM Info: {script['elements']}")
-    #                         if script['id'] == 'rdp-ntlm-info' and 'elements' in script:
-    #                             print(f"  Port {port.get('portid')}: RDP NTLM Info: {script['elements']}")
-    #                         if script['id'] == 'ssl-cert' and 'tables' in script:
-    #                             for table_entry in script['tables']:
-    #                                 if 'subject' in table_entry:
-    #                                     print(f"  Port {port.get('portid')}: SSL Cert Subject: {table_entry['subject']}")
-    #         if 'host_scripts' in host:
-    #             for script in host['host_scripts']:
-    #                 if 'elements' in script:
-    #                      print(f"  Host Script '{script['id']}': {script['elements']}")
-
