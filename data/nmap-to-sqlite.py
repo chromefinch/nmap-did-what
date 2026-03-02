@@ -48,7 +48,6 @@ def _parse_table_node(table_node):
             else: # Only unkeyed elements in this keyed table
                  current_table_data_under_key = {'_values': unkeyed_direct_elements}
 
-
         if nested_tables_list:
             current_table_data_under_key['tables'] = nested_tables_list
         
@@ -63,7 +62,6 @@ def _parse_table_node(table_node):
                 table_content['_unkeyed_values'] = unkeyed_direct_elements
             else: # only unkeyed elements in this unkeyed table
                 table_content['_values'] = unkeyed_direct_elements
-
 
         # And its nested tables are stored in a 'tables' list.
         if nested_tables_list:
@@ -185,7 +183,7 @@ def parse_nmap_xml(xml_file):
             osmatch_nodes = os_node.findall('osmatch')
             if osmatch_nodes:
                 host_info['os_detection']['osmatches'] = []
-                for osmatch_node in osmatch_nodes: # Nmap can list multiple OS matches
+                for osmatch_node in osmatch_nodes:
                     osmatch_data = {
                         'name': osmatch_node.get('name'),
                         'accuracy': osmatch_node.get('accuracy')
@@ -220,7 +218,6 @@ def parse_nmap_xml(xml_file):
             if osfingerprint_node is not None and osfingerprint_node.get('fingerprint'):
                  host_info['os_detection']['fingerprint'] = osfingerprint_node.get('fingerprint')
 
-
         # --- Ports Information ---
         ports_info = []
         ports_node = host_node.find('ports')
@@ -247,12 +244,11 @@ def parse_nmap_xml(xml_file):
                         'version': service_node.get('version'),
                         'extrainfo': service_node.get('extrainfo'),
                         'method': service_node.get('method'),
-                        'confidence': service_node.get('conf'), # 'conf' attribute for confidence
+                        'confidence': service_node.get('conf'),
                         'ostype': service_node.get('ostype'),
                         'devicetype': service_node.get('devicetype'),
-                        'hostname': service_node.get('hostname') # some services report hostname
+                        'hostname': service_node.get('hostname')
                     }
-                    # Remove None values from service dictionary for cleaner output
                     port_details['service'] = {k: v for k, v in port_details['service'].items() if v is not None}
 
                     cpe_nodes = service_node.findall('cpe')
@@ -310,30 +306,6 @@ def parse_nmap_xml(xml_file):
                     host_level_scripts_data.append(parsed_script)
             if host_level_scripts_data:
                 host_info['host_scripts'] = host_level_scripts_data
-
-        # --- Other Host Information ---
-        # Trace information
-        trace_node = host_node.find('trace')
-        if trace_node is not None:
-            host_info['trace'] = {'port': trace_node.get('port'), 'proto': trace_node.get('proto'), 'hops': []}
-            for hop_node in trace_node.findall('hop'):
-                hop_data = {
-                    'ttl': hop_node.get('ttl'),
-                    'rtt': hop_node.get('rtt'),
-                    'ipaddr': hop_node.get('ipaddr'),
-                    'host': hop_node.get('host') # often the same as ipaddr if no PTR
-                }
-                host_info['trace']['hops'].append({k:v for k,v in hop_data.items() if v is not None})
-        
-        # Times
-        times_node = host_node.find('times')
-        if times_node is not None:
-            host_info['times'] = {
-                'srtt': times_node.get('srtt'), # Smoothed Round Trip Time
-                'rttvar': times_node.get('rttvar'), # Round Trip Time Variance
-                'to': times_node.get('to') # Timeout
-            }
-            host_info['times'] = {k:v for k,v in host_info['times'].items() if v is not None}
 
         if host_info: # Only add if we have gathered some information for the host
             hosts_data.append(host_info)
@@ -394,6 +366,7 @@ def init_database(db_path="nmap_results.db"):
             http_title TEXT,
             ssl_common_name TEXT,
             ssl_issuer TEXT,
+            script_outputs TEXT,
             FOREIGN KEY(host_id) REFERENCES hosts(id)
         );
     ''')
@@ -502,14 +475,24 @@ def import_to_sqlite(parsed_data, db_path="nmap_results.db"):
             ssl_common_name = ""
             ssl_issuer = ""
             
+            # Extract script outputs into one large string block for the dashboard
+            script_outputs_list = []
+            
             for script in port.get('scripts', []):
-                if script['id'] == 'http-title':
+                script_id = script.get('id', '')
+                script_output_text = script.get('output', '')
+                
+                if script_id and script_output_text:
+                    script_outputs_list.append(f"[{script_id}]\n{str(script_output_text).strip()}")
+                    
+                # Continue extracting the special HTTP and SSL fields like before
+                if script_id == 'http-title':
                     elements = script.get('elements', {})
                     if isinstance(elements, dict) and 'title' in elements:
                         http_title = elements['title']
                     else:
-                        http_title = script.get('output', '')
-                elif script['id'] == 'ssl-cert':
+                        http_title = script_output_text
+                elif script_id == 'ssl-cert':
                     tables = script.get('tables', [])
                     if isinstance(tables, list):
                         for t in tables:
@@ -518,9 +501,11 @@ def import_to_sqlite(parsed_data, db_path="nmap_results.db"):
                             if 'issuer' in t and isinstance(t['issuer'], dict):
                                 ssl_issuer = t['issuer'].get('commonName', '')
             
+            script_outputs_str = "\n\n".join(script_outputs_list)
+            
             cursor.execute(
-                "INSERT INTO ports (host_id, port, protocol, state, service_info, http_title, ssl_common_name, ssl_issuer) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
-                (host_id, portid, protocol, state, service_info, http_title, ssl_common_name, ssl_issuer)
+                "INSERT INTO ports (host_id, port, protocol, state, service_info, http_title, ssl_common_name, ssl_issuer, script_outputs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                (host_id, portid, protocol, state, service_info, http_title, ssl_common_name, ssl_issuer, script_outputs_str)
             )
 
     conn.commit()
