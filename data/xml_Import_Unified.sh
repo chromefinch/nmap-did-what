@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+echo "Script to bulk import xml's using a for loop & the UnifiedSecurityImporter.py script" 
+echo "(Please run from folder containing UnifiedSecurityImporter.py)"
+
+# Check if the user is running with sudo
+if [[ "$EUID" -eq 0 ]]; then
+  echo "Listing directory structure (directories only, up one level):"
+  ls -1dR ../*
+  echo ""
+else
+    # Check if the 'tree' command is installed
+    if command -v tree &> /dev/null; then
+    echo "Listing directory structure (directories only, up one level):"
+    tree -d ../
+    echo ""
+    fi
+fi
+
+# Prompt the user for the location of the XML files
+read -p "Enter the folder where the .xml files are located: " folder
+
+# Check if the entered folder exists
+if [ ! -d "$folder" ]; then
+  echo "Error: Folder '$folder' does not exist."
+  exit 1
+fi
+
+# Loop through all .xml files in the specified folder
+for file in "$folder"/*.xml; do
+  if [ -f "$file" ]; then
+    # Filter: Only process if the filename contains "phase4" OR "phase5"
+    if [[ "$file" == *phase4* ]] || [[ "$file" == *phase5* ]]; then
+      echo "Processing file: $file"
+      
+      # [UPDATED]: Added the --nmap flag for the unified importer
+      python3 UnifiedSecurityImporter.py --nmap "$file"
+      
+      if [ $? -ne 0 ]; then
+        echo "Error: python3 UnifiedSecurityImporter.py --nmap '$file' failed."
+      fi
+    fi
+  fi
+done
+
+echo "Processing complete."
