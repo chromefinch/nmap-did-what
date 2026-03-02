@@ -1,0 +1,1901 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_SQLITE",
+      "label": "SQLite",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "frser-sqlite-datasource",
+      "pluginName": "SQLite"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "panel",
+      "id": "barchart",
+      "name": "Bar chart",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "bargauge",
+      "name": "Bar gauge",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "frser-sqlite-datasource",
+      "name": "SQLite",
+      "version": "3.5.0"
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "12.4.0"
+    },
+    {
+      "type": "panel",
+      "id": "piechart",
+      "name": "Pie chart",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4ecda7",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 0,
+        "y": 0
+      },
+      "id": 10,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT COUNT(DISTINCT h.ip) AS count\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time <= $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT COUNT(DISTINCT h.ip) AS count\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time <= $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Hosts Up",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#4ecda7",
+            "mode": "shades"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "count"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": true,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 5,
+        "x": 2,
+        "y": 0
+      },
+      "id": 13,
+      "options": {
+        "displayLabels": [],
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT\n  h.os,\n  COUNT(*) AS \"count\"\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nGROUP BY h.os\nORDER BY count DESC;\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT\n  h.os,\n  COUNT(*) AS \"count\"\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nGROUP BY h.os\nORDER BY count DESC;\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Operating Systems",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#4ecda7",
+            "mode": "shades"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 5,
+        "x": 7,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT p.port, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\n AND (p.service_info = '' OR p.service_info = 'Unknown' OR p.service_info IS NULL) AND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.port\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT p.port, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\n AND (p.service_info = '' OR p.service_info = 'Unknown' OR p.service_info IS NULL) AND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.port\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Unidentified Services (open port)",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [
+            {
+              "options": {
+                "critical": {
+                  "color": "red",
+                  "index": 0
+                },
+                "high": {
+                  "color": "orange",
+                  "index": 1
+                },
+                "medium": {
+                  "color": "yellow",
+                  "index": 2
+                },
+                "low": {
+                  "color": "green",
+                  "index": 3
+                },
+                "info": {
+                  "color": "blue",
+                  "index": 4
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 5,
+        "x": 12,
+        "y": 0
+      },
+      "id": 20,
+      "options": {
+        "displayLabels": [],
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT severity, COUNT(*) AS count\nFROM nuclei_results\nWHERE ('${SearchTerm}' = '' OR target LIKE '%'||'${SearchTerm}'||'%' OR ip LIKE '%'||'${SearchTerm}'||'%' OR template_name LIKE '%'||'${SearchTerm}'||'%')\nGROUP BY severity\nORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END;",
+          "queryType": "table",
+          "rawQueryText": "SELECT severity, COUNT(*) AS count\nFROM nuclei_results\nWHERE ('${SearchTerm}' = '' OR target LIKE '%'||'${SearchTerm}'||'%' OR ip LIKE '%'||'${SearchTerm}'||'%' OR template_name LIKE '%'||'${SearchTerm}'||'%')\nGROUP BY severity\nORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END;",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Nuclei Vulcanerabilities",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4ecda7",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "count"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "gauge"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 7,
+        "x": 17,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "count"
+          }
+        ]
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT p.service_info, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.service_info IS NOT NULL AND p.service_info <> '' AND p.service_info <> 'Unknown'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.service_info\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT p.service_info, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.service_info IS NOT NULL AND p.service_info <> '' AND p.service_info <> 'Unknown'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.service_info\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Identified Services",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4ecda7",
+                "value": 0
+              },
+              {
+                "color": "light-purple",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 0,
+        "y": 3
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT SUM(unique_open_ports) AS total_unique_open_ports\nFROM (\n  SELECT\n    COUNT(DISTINCT p.port) AS unique_open_ports,\n    h.ip AS host_ip\n  FROM ports p\n  JOIN hosts h ON p.host_id = h.id\n  WHERE p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n  GROUP BY h.ip, p.port\n) AS subquery;\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT SUM(unique_open_ports) AS total_unique_open_ports\nFROM (\n  SELECT\n    COUNT(DISTINCT p.port) AS unique_open_ports,\n    h.ip AS host_ip\n  FROM ports p\n  JOIN hosts h ON p.host_id = h.id\n  WHERE p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n  GROUP BY h.ip, p.port\n) AS subquery;\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Open Ports",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4ecda7",
+                "value": 0
+              },
+              {
+                "color": "light-purple",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 0,
+        "y": 6
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT\n  COUNT(DISTINCT p.port) AS \"Unique Ports\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to AND p.state is 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n));\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT\n  COUNT(DISTINCT p.port) AS \"Unique Ports\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to AND p.state is 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n));\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Unique Ports",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "fillOpacity": 60,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4ecda7",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 10,
+        "x": 2,
+        "y": 7
+      },
+      "id": 5,
+      "options": {
+        "barRadius": 0.05,
+        "barWidth": 0.95,
+        "fullHighlight": false,
+        "groupWidth": 0.7,
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "orientation": "auto",
+        "showValue": "auto",
+        "stacking": "none",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        },
+        "xField": "port",
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 0
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT\n  p.port,\n  COUNT(DISTINCT h.ip) AS host_count\nFROM\n  hosts h\n  JOIN ports p ON h.id = p.host_id\nWHERE\n  p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY\n  CAST(p.port AS INTEGER);",
+          "queryType": "table",
+          "rawQueryText": "SELECT\n  p.port,\n  COUNT(DISTINCT h.ip) AS host_count\nFROM\n  hosts h\n  JOIN ports p ON h.id = p.host_id\nWHERE\n  p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY\n  CAST(p.port AS INTEGER);",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Open Ports Found",
+      "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4ecda7",
+                "value": 0
+              },
+              {
+                "color": "light-purple",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 2,
+        "x": 0,
+        "y": 9
+      },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT\n  COUNT(DISTINCT s.id) AS count\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT\n  COUNT(DISTINCT s.id) AS count\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Scans",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4ecda7",
+                "value": 0
+              },
+              {
+                "color": "light-purple",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "port"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "protocol"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 115
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ip"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ports_tested"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 135
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ports_closed"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 132
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ports_filtered"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 111
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "hostname"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 165
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ports_open"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "gauge",
+                  "valueDisplayMode": "color"
+                }
+              },
+              {
+                "id": "fieldMinMax",
+                "value": true
+              },
+              {
+                "id": "custom.width",
+                "value": 293
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 15,
+        "x": 0,
+        "y": 12
+      },
+      "id": 6,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT h.ip, h.hostname, h.ports_tested, h.ports_open, h.ports_closed, h.ports_filtered FROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip_int ASC;\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, h.hostname, h.ports_tested, h.ports_open, h.ports_closed, h.ports_filtered FROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip_int ASC;\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Hosts",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#4ecda7",
+            "mode": "shades"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisGridShow": false,
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 0,
+            "gradientMode": "hue",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 5,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#4ecda7",
+                "value": 0
+              },
+              {
+                "color": "light-purple",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "elapsed_time"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 9,
+        "x": 15,
+        "y": 12
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT\n  s.start_time AS \"time\",\n  s.total_open_ports AS \"open_ports\",\n  s.total_hosts\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY s.start_time\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT\n  s.start_time AS \"time\",\n  s.total_open_ports AS \"open_ports\",\n  s.total_hosts\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY s.start_time\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Live Hosts and Open Ports over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "#4ecda7",
+                "value": 0
+              },
+              {
+                "color": "light-purple",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 9,
+        "x": 15,
+        "y": 16
+      },
+      "id": 15,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT h.ip, \n       (h.ports_tested * 1.0) / ((h.end_time - h.start_time) / 1000) AS avg_ports_per_second\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to AND h.ports_tested IS NOT NULL\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip_int ASC;\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, \n       (h.ports_tested * 1.0) / ((h.end_time - h.start_time) / 1000) AS avg_ports_per_second\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to AND h.ports_tested IS NOT NULL\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip_int ASC;\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Port Tested Per Second by Host",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "id": 21,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT target, ip, template_id, template_name, severity, matched_at \nFROM nuclei_results \nWHERE ('${SearchTerm}' = '' OR target LIKE '%'||'${SearchTerm}'||'%' OR ip LIKE '%'||'${SearchTerm}'||'%' OR template_name LIKE '%'||'${SearchTerm}'||'%')\nORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END;",
+          "queryType": "table",
+          "rawQueryText": "SELECT target, ip, template_id, template_name, severity, matched_at \nFROM nuclei_results \nWHERE ('${SearchTerm}' = '' OR target LIKE '%'||'${SearchTerm}'||'%' OR ip LIKE '%'||'${SearchTerm}'||'%' OR template_name LIKE '%'||'${SearchTerm}'||'%')\nORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END;",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Nuclei Findings",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
+      "id": 22,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT ip, port, vulnerability, import_date \nFROM nikto_results \nWHERE ('${SearchTerm}' = '' OR ip LIKE '%'||'${SearchTerm}'||'%' OR vulnerability LIKE '%'||'${SearchTerm}'||'%')\nORDER BY import_date DESC;",
+          "queryType": "table",
+          "rawQueryText": "SELECT ip, port, vulnerability, import_date \nFROM nikto_results \nWHERE ('${SearchTerm}' = '' OR ip LIKE '%'||'${SearchTerm}'||'%' OR vulnerability LIKE '%'||'${SearchTerm}'||'%')\nORDER BY import_date DESC;",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Nikto Findings",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "port"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 85
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "protocol"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 115
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ip"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "http_title"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 537
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "service_info"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 330
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "id": 1,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "http_title"
+          }
+        ]
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT h.ip, p.protocol, p.port, p.service_info, p.http_title, p.ssl_common_name, p.ssl_issuer\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC;\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, p.protocol, p.port, p.service_info, p.http_title, p.ssl_common_name, p.ssl_issuer\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC;\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Open Services",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "command_line"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 447
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_hosts"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 108
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "gauge",
+                  "valueDisplayMode": "color"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "start_time_utc"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 194
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total_open_ports"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "gauge",
+                  "valueDisplayMode": "color"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "elapsed_time"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 118
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 51
+      },
+      "id": 14,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans s\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans s\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Scans Loaded",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "state_change"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 51
+      },
+      "id": 19,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT h.ip, h.hostname, p.port, p.service_info AS \"Service\", p.state_change AS \"Delta\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state_change != 'unchanged' AND p.state_change != 'new_host'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC;\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, h.hostname, p.port, p.service_info AS \"Service\", p.state_change AS \"Delta\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state_change != 'unchanged' AND p.state_change != 'new_host'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC;\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Port State Changes (Deltas)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 58
+      },
+      "id": 16,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT h.ip, p.port, p.service_info AS \"Server/Version\", p.http_title AS \"HTTP Title\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.http_title != '' OR p.service_info LIKE '%http%' OR p.service_info LIKE '%ssl%')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, p.port, p.service_info AS \"Server/Version\", p.http_title AS \"HTTP Title\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.http_title != '' OR p.service_info LIKE '%http%' OR p.service_info LIKE '%ssl%')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "HTTP Servers & Titles",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 58
+      },
+      "id": 17,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT h.ip, p.port, p.ssl_common_name AS \"Common Name\", p.ssl_issuer AS \"Issuer\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.ssl_common_name != '' OR p.ssl_issuer != '')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, p.port, p.ssl_common_name AS \"Common Name\", p.ssl_issuer AS \"Issuer\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.ssl_common_name != '' OR p.ssl_issuer != '')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "SSL/TLS Certificates",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 68
+      },
+      "id": 18,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT h.ip, p.port, p.service_info AS \"Service\", sr.script_id AS \"NSE Script\", sr.output AS \"Results\"\nFROM script_results sr\nJOIN ports p ON sr.port_id = p.id\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open'\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, p.port, p.service_info AS \"Service\", sr.script_id AS \"NSE Script\", sr.output AS \"Results\"\nFROM script_results sr\nJOIN ports p ON sr.port_id = p.id\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open'\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Phase 5 NSE Script Outputs (Detailed Enumeration)",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 42,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "Any",
+          "value": "Any"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "SearchField",
+        "options": [
+          {
+            "selected": true,
+            "text": "Any",
+            "value": "Any"
+          },
+          {
+            "selected": false,
+            "text": "IP",
+            "value": "IP"
+          },
+          {
+            "selected": false,
+            "text": "Port",
+            "value": "Port"
+          },
+          {
+            "selected": false,
+            "text": "Service",
+            "value": "Service"
+          },
+          {
+            "selected": false,
+            "text": "OS",
+            "value": "OS"
+          },
+          {
+            "selected": false,
+            "text": "Hostname",
+            "value": "Hostname"
+          }
+        ],
+        "query": "Any,IP,Port,Service,OS,Hostname",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        },
+        "hide": 0,
+        "name": "SearchTerm",
+        "options": [
+          {
+            "selected": true,
+            "text": "",
+            "value": ""
+          }
+        ],
+        "query": "",
+        "skipUrlSync": false,
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Unified Security Dashboard",
+  "uid": "cdikljcadaf40c",
+  "version": 1,
+  "weekStart": ""
+}
