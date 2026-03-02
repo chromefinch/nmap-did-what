@@ -29,10 +29,14 @@ fi
 # Loop through all .xml files in the specified folder
 for file in "$folder"/*.xml; do
   if [ -f "$file" ]; then
-    echo "Processing file: $file"
-    python3 nmap-to-sqlite.py "$file"
-    if [ $? -ne 0 ]; then
-      echo "Error: python3 nmap-to-sqlite.py '$file' failed."
+    # Filter: Only process if the filename contains "phase4" OR "phase5"
+    if [[ "$file" == *phase4* ]] || [[ "$file" == *phase5* ]]; then
+      echo "Processing file: $file"
+      python3 nmap-to-sqlite.py "$file"
+      
+      if [ $? -ne 0 ]; then
+        echo "Error: python3 nmap-to-sqlite.py '$file' failed."
+      fi
     fi
   fi
 done
