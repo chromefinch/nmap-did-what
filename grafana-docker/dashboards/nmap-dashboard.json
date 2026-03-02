@@ -1,4 +1,65 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_SQLITE",
+      "label": "SQLite",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "frser-sqlite-datasource",
+      "pluginName": "SQLite"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "panel",
+      "id": "barchart",
+      "name": "Bar chart",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "bargauge",
+      "name": "Bar gauge",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "frser-sqlite-datasource",
+      "name": "SQLite",
+      "version": "3.5.0"
+    },
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "12.4.0"
+    },
+    {
+      "type": "panel",
+      "id": "piechart",
+      "name": "Pie chart",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    }
+  ],
   "annotations": {
     "list": [
       {
@@ -23,7 +84,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -76,11 +137,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT COUNT(DISTINCT h.ip) AS count\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time <= $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "queryText": "SELECT COUNT(DISTINCT h.ip) AS count\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time <= $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
           "queryType": "table",
-          "rawQueryText": "SELECT COUNT(DISTINCT h.ip) AS count\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time <= $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "rawQueryText": "SELECT COUNT(DISTINCT h.ip) AS count\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time <= $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -94,7 +155,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -175,11 +236,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT\n  h.os,\n  COUNT(*) AS \"count\"\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nGROUP BY h.os\nORDER BY count DESC;\n",
+          "queryText": "SELECT\n  h.os,\n  COUNT(*) AS \"count\"\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nGROUP BY h.os\nORDER BY count DESC;\n",
           "queryType": "table",
-          "rawQueryText": "SELECT\n  h.os,\n  COUNT(*) AS \"count\"\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nGROUP BY h.os\nORDER BY count DESC;\n",
+          "rawQueryText": "SELECT\n  h.os,\n  COUNT(*) AS \"count\"\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nGROUP BY h.os\nORDER BY count DESC;\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -193,7 +254,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -245,11 +306,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT p.port, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\n AND (p.service_info = '' OR p.service_info = 'Unknown' OR p.service_info IS NULL) AND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.port\n",
+          "queryText": "SELECT p.port, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\n AND (p.service_info = '' OR p.service_info = 'Unknown' OR p.service_info IS NULL) AND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.port\n",
           "queryType": "table",
-          "rawQueryText": "SELECT p.port, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\n AND (p.service_info = '' OR p.service_info = 'Unknown' OR p.service_info IS NULL) AND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.port\n",
+          "rawQueryText": "SELECT p.port, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\n AND (p.service_info = '' OR p.service_info = 'Unknown' OR p.service_info IS NULL) AND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.port\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -263,7 +324,103 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [
+            {
+              "options": {
+                "critical": {
+                  "color": "red",
+                  "index": 0
+                },
+                "high": {
+                  "color": "orange",
+                  "index": 1
+                },
+                "medium": {
+                  "color": "yellow",
+                  "index": 2
+                },
+                "low": {
+                  "color": "green",
+                  "index": 3
+                },
+                "info": {
+                  "color": "blue",
+                  "index": 4
+                }
+              },
+              "type": "value"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 5,
+        "x": 12,
+        "y": 0
+      },
+      "id": 20,
+      "options": {
+        "displayLabels": [],
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "sort": "desc",
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT severity, COUNT(*) AS count\nFROM nuclei_results\nWHERE ('${SearchTerm}' = '' OR target LIKE '%'||'${SearchTerm}'||'%' OR ip LIKE '%'||'${SearchTerm}'||'%' OR template_name LIKE '%'||'${SearchTerm}'||'%')\nGROUP BY severity\nORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END;",
+          "queryType": "table",
+          "rawQueryText": "SELECT severity, COUNT(*) AS count\nFROM nuclei_results\nWHERE ('${SearchTerm}' = '' OR target LIKE '%'||'${SearchTerm}'||'%' OR ip LIKE '%'||'${SearchTerm}'||'%' OR template_name LIKE '%'||'${SearchTerm}'||'%')\nGROUP BY severity\nORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END;",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Nuclei Vulcanerabilities",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -315,8 +472,8 @@
       },
       "gridPos": {
         "h": 12,
-        "w": 12,
-        "x": 12,
+        "w": 7,
+        "x": 17,
         "y": 0
       },
       "id": 4,
@@ -335,11 +492,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT p.service_info, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.service_info IS NOT NULL AND p.service_info <> '' AND p.service_info <> 'Unknown'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.service_info\n",
+          "queryText": "SELECT p.service_info, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.service_info IS NOT NULL AND p.service_info <> '' AND p.service_info <> 'Unknown'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.service_info\n",
           "queryType": "table",
-          "rawQueryText": "SELECT p.service_info, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.service_info IS NOT NULL AND p.service_info <> '' AND p.service_info <> 'Unknown'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.service_info\n",
+          "rawQueryText": "SELECT p.service_info, COUNT(*) AS count\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.service_info IS NOT NULL AND p.service_info <> '' AND p.service_info <> 'Unknown'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY p.service_info\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -353,7 +510,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -406,11 +563,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT SUM(unique_open_ports) AS total_unique_open_ports\nFROM (\n  SELECT\n    COUNT(DISTINCT p.port) AS unique_open_ports,\n    h.ip AS host_ip\n  FROM ports p\n  JOIN hosts h ON p.host_id = h.id\n  WHERE p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n  GROUP BY h.ip, p.port\n) AS subquery;\n",
+          "queryText": "SELECT SUM(unique_open_ports) AS total_unique_open_ports\nFROM (\n  SELECT\n    COUNT(DISTINCT p.port) AS unique_open_ports,\n    h.ip AS host_ip\n  FROM ports p\n  JOIN hosts h ON p.host_id = h.id\n  WHERE p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n  GROUP BY h.ip, p.port\n) AS subquery;\n",
           "queryType": "table",
-          "rawQueryText": "SELECT SUM(unique_open_ports) AS total_unique_open_ports\nFROM (\n  SELECT\n    COUNT(DISTINCT p.port) AS unique_open_ports,\n    h.ip AS host_ip\n  FROM ports p\n  JOIN hosts h ON p.host_id = h.id\n  WHERE p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n  GROUP BY h.ip, p.port\n) AS subquery;\n",
+          "rawQueryText": "SELECT SUM(unique_open_ports) AS total_unique_open_ports\nFROM (\n  SELECT\n    COUNT(DISTINCT p.port) AS unique_open_ports,\n    h.ip AS host_ip\n  FROM ports p\n  JOIN hosts h ON p.host_id = h.id\n  WHERE p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n  GROUP BY h.ip, p.port\n) AS subquery;\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -424,7 +581,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -477,11 +634,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT\n  COUNT(DISTINCT p.port) AS \"Unique Ports\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to AND p.state is 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n));\n",
+          "queryText": "SELECT\n  COUNT(DISTINCT p.port) AS \"Unique Ports\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to AND p.state is 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n));\n",
           "queryType": "table",
-          "rawQueryText": "SELECT\n  COUNT(DISTINCT p.port) AS \"Unique Ports\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to AND p.state is 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n));\n",
+          "rawQueryText": "SELECT\n  COUNT(DISTINCT p.port) AS \"Unique Ports\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to AND p.state is 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n));\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -495,7 +652,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -576,11 +733,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT\n  p.port,\n  COUNT(DISTINCT h.ip) AS host_count\nFROM\n  hosts h\n  JOIN ports p ON h.id = p.host_id\nWHERE\n  p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY\n  p.port;",
+          "queryText": "SELECT\n  p.port,\n  COUNT(DISTINCT h.ip) AS host_count\nFROM\n  hosts h\n  JOIN ports p ON h.id = p.host_id\nWHERE\n  p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY\n  CAST(p.port AS INTEGER);",
           "queryType": "table",
-          "rawQueryText": "SELECT\n  p.port,\n  COUNT(DISTINCT h.ip) AS host_count\nFROM\n  hosts h\n  JOIN ports p ON h.id = p.host_id\nWHERE\n  p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY\n  p.port;",
+          "rawQueryText": "SELECT\n  p.port,\n  COUNT(DISTINCT h.ip) AS host_count\nFROM\n  hosts h\n  JOIN ports p ON h.id = p.host_id\nWHERE\n  p.state = 'open' AND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nGROUP BY\n  CAST(p.port AS INTEGER);",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -594,7 +751,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -647,11 +804,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT\n  COUNT(DISTINCT s.id) AS count\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "queryText": "SELECT\n  COUNT(DISTINCT s.id) AS count\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
           "queryType": "table",
-          "rawQueryText": "SELECT\n  COUNT(DISTINCT s.id) AS count\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "rawQueryText": "SELECT\n  COUNT(DISTINCT s.id) AS count\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -665,7 +822,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -826,11 +983,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT h.ip, h.hostname, h.ports_tested, h.ports_open, h.ports_closed, h.ports_filtered FROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "queryText": "SELECT h.ip, h.hostname, h.ports_tested, h.ports_open, h.ports_closed, h.ports_filtered FROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip_int ASC;\n",
           "queryType": "table",
-          "rawQueryText": "SELECT h.ip, h.hostname, h.ports_tested, h.ports_open, h.ports_closed, h.ports_filtered FROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "rawQueryText": "SELECT h.ip, h.hostname, h.ports_tested, h.ports_open, h.ports_closed, h.ports_filtered FROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip_int ASC;\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -844,7 +1001,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -942,11 +1099,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT\n  s.start_time AS \"time\",\n  s.total_open_ports AS \"open_ports\",\n  s.total_hosts\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY s.start_time\n",
+          "queryText": "SELECT\n  s.start_time AS \"time\",\n  s.total_open_ports AS \"open_ports\",\n  s.total_hosts\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY s.start_time\n",
           "queryType": "table",
-          "rawQueryText": "SELECT\n  s.start_time AS \"time\",\n  s.total_open_ports AS \"open_ports\",\n  s.total_hosts\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY s.start_time\n",
+          "rawQueryText": "SELECT\n  s.start_time AS \"time\",\n  s.total_open_ports AS \"open_ports\",\n  s.total_hosts\nFROM scans s\nWHERE\n  s.start_time >= $__from / 1000\n  AND s.start_time + s.elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY s.start_time\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -960,7 +1117,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1018,11 +1175,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT h.ip, \n       (h.ports_tested * 1.0) / ((h.end_time - h.start_time) / 1000) AS avg_ports_per_second\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to AND h.ports_tested IS NOT NULL\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip;\n",
+          "queryText": "SELECT h.ip, \n       (h.ports_tested * 1.0) / ((h.end_time - h.start_time) / 1000) AS avg_ports_per_second\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to AND h.ports_tested IS NOT NULL\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip_int ASC;\n",
           "queryType": "table",
-          "rawQueryText": "SELECT h.ip, \n       (h.ports_tested * 1.0) / ((h.end_time - h.start_time) / 1000) AS avg_ports_per_second\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to AND h.ports_tested IS NOT NULL\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip;\n",
+          "rawQueryText": "SELECT h.ip, \n       (h.ports_tested * 1.0) / ((h.end_time - h.start_time) / 1000) AS avg_ports_per_second\nFROM hosts h\nWHERE h.start_time >= $__from AND h.end_time < $__to AND h.ports_tested IS NOT NULL\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.id = h.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n)\nORDER BY h.ip_int ASC;\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -1036,7 +1193,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1048,6 +1205,121 @@
             "cellOptions": {
               "type": "auto"
             },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "id": 21,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT target, ip, template_id, template_name, severity, matched_at \nFROM nuclei_results \nWHERE ('${SearchTerm}' = '' OR target LIKE '%'||'${SearchTerm}'||'%' OR ip LIKE '%'||'${SearchTerm}'||'%' OR template_name LIKE '%'||'${SearchTerm}'||'%')\nORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END;",
+          "queryType": "table",
+          "rawQueryText": "SELECT target, ip, template_id, template_name, severity, matched_at \nFROM nuclei_results \nWHERE ('${SearchTerm}' = '' OR target LIKE '%'||'${SearchTerm}'||'%' OR ip LIKE '%'||'${SearchTerm}'||'%' OR template_name LIKE '%'||'${SearchTerm}'||'%')\nORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 ELSE 5 END;",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Nuclei Findings",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
+      "id": 22,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT ip, port, vulnerability, import_date \nFROM nikto_results \nWHERE ('${SearchTerm}' = '' OR ip LIKE '%'||'${SearchTerm}'||'%' OR vulnerability LIKE '%'||'${SearchTerm}'||'%')\nORDER BY import_date DESC;",
+          "queryType": "table",
+          "rawQueryText": "SELECT ip, port, vulnerability, import_date \nFROM nikto_results \nWHERE ('${SearchTerm}' = '' OR ip LIKE '%'||'${SearchTerm}'||'%' OR vulnerability LIKE '%'||'${SearchTerm}'||'%')\nORDER BY import_date DESC;",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Nikto Findings",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
             "footer": {
               "reducers": []
             },
@@ -1135,7 +1407,7 @@
         "h": 16,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 35
       },
       "id": 1,
       "options": {
@@ -1153,11 +1425,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT h.ip, p.protocol, p.port, p.service_info, p.http_title, p.ssl_common_name, p.ssl_issuer\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n));\n",
+          "queryText": "SELECT h.ip, p.protocol, p.port, p.service_info, p.http_title, p.ssl_common_name, p.ssl_issuer\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC;\n",
           "queryType": "table",
-          "rawQueryText": "SELECT h.ip, p.protocol, p.port, p.service_info, p.http_title, p.ssl_common_name, p.ssl_issuer\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n));\n",
+          "rawQueryText": "SELECT h.ip, p.protocol, p.port, p.service_info, p.http_title, p.ssl_common_name, p.ssl_issuer\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state = 'open'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC;\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -1171,7 +1443,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1188,20 +1460,7 @@
             },
             "inspect": false
           },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#4ecda7",
-                "value": 0
-              },
-              {
-                "color": "light-purple",
-                "value": 80
-              }
-            ]
-          }
+          "mappings": []
         },
         "overrides": [
           {
@@ -1280,9 +1539,9 @@
       },
       "gridPos": {
         "h": 7,
-        "w": 18,
+        "w": 12,
         "x": 0,
-        "y": 41
+        "y": 51
       },
       "id": 14,
       "options": {
@@ -1295,11 +1554,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans s\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "queryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans s\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
           "queryType": "table",
-          "rawQueryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans s\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN (fh.ip LIKE '%'||'${SearchTerm}'||'%' OR fh.hostname LIKE '%'||'${SearchTerm}'||'%' OR fh.os LIKE '%'||'${SearchTerm}'||'%' OR fp.port LIKE '%'||'${SearchTerm}'||'%' OR fp.service_info LIKE '%'||'${SearchTerm}'||'%' OR fp.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
+          "rawQueryText": "SELECT\n  datetime(start_time, 'unixepoch') AS start_time_utc,\n  command_line,\n  elapsed_time,\n  total_hosts,\n  total_open_ports\nFROM scans s\nWHERE\n  start_time >= $__from / 1000\n  AND start_time + elapsed_time < $__to / 1000\nAND EXISTS (\n  SELECT 1 FROM hosts fh LEFT JOIN ports fp ON fh.id = fp.host_id \n  WHERE fh.scan_id = s.id \n  AND ('${SearchTerm}' = '' OR (\n    CASE \n      WHEN '${SearchField}' = 'Any' THEN fh.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n      WHEN '${SearchField}' = 'IP' THEN fh.ip LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Port' THEN fp.port LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Service' THEN fp.service_info LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'OS' THEN fh.os LIKE '%'||'${SearchTerm}'||'%'\n      WHEN '${SearchField}' = 'Hostname' THEN fh.hostname LIKE '%'||'${SearchTerm}'||'%'\n    END\n  ))\n);\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -1313,7 +1572,80 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true,
+            "footer": {
+              "reducers": []
+            },
+            "inspect": false
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "state_change"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 51
+      },
+      "id": 19,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "frser-sqlite-datasource",
+            "uid": "${DS_SQLITE}"
+          },
+          "queryText": "SELECT h.ip, h.hostname, p.port, p.service_info AS \"Service\", p.state_change AS \"Delta\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state_change != 'unchanged' AND p.state_change != 'new_host'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC;\n",
+          "queryType": "table",
+          "rawQueryText": "SELECT h.ip, h.hostname, p.port, p.service_info AS \"Service\", p.state_change AS \"Delta\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE h.start_time >= $__from AND h.end_time < $__to\nAND p.state_change != 'unchanged' AND p.state_change != 'new_host'\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC;\n",
+          "refId": "A",
+          "timeColumns": [
+            "time",
+            "ts"
+          ]
+        }
+      ],
+      "title": "Port State Changes (Deltas)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "frser-sqlite-datasource",
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1339,7 +1671,7 @@
         "h": 10,
         "w": 12,
         "x": 0,
-        "y": 48
+        "y": 58
       },
       "id": 16,
       "options": {
@@ -1352,11 +1684,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT h.ip, p.port, p.service_info AS \"Server/Version\", p.http_title AS \"HTTP Title\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.http_title != '' OR p.service_info LIKE '%http%' OR p.service_info LIKE '%ssl%')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip, p.port\n",
+          "queryText": "SELECT h.ip, p.port, p.service_info AS \"Server/Version\", p.http_title AS \"HTTP Title\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.http_title != '' OR p.service_info LIKE '%http%' OR p.service_info LIKE '%ssl%')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
           "queryType": "table",
-          "rawQueryText": "SELECT h.ip, p.port, p.service_info AS \"Server/Version\", p.http_title AS \"HTTP Title\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.http_title != '' OR p.service_info LIKE '%http%' OR p.service_info LIKE '%ssl%')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip, p.port\n",
+          "rawQueryText": "SELECT h.ip, p.port, p.service_info AS \"Server/Version\", p.http_title AS \"HTTP Title\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.http_title != '' OR p.service_info LIKE '%http%' OR p.service_info LIKE '%ssl%')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -1370,7 +1702,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1396,7 +1728,7 @@
         "h": 10,
         "w": 12,
         "x": 12,
-        "y": 48
+        "y": 58
       },
       "id": 17,
       "options": {
@@ -1409,11 +1741,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT h.ip, p.port, p.ssl_common_name AS \"Common Name\", p.ssl_issuer AS \"Issuer\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.ssl_common_name != '' OR p.ssl_issuer != '')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip, p.port\n",
+          "queryText": "SELECT h.ip, p.port, p.ssl_common_name AS \"Common Name\", p.ssl_issuer AS \"Issuer\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.ssl_common_name != '' OR p.ssl_issuer != '')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
           "queryType": "table",
-          "rawQueryText": "SELECT h.ip, p.port, p.ssl_common_name AS \"Common Name\", p.ssl_issuer AS \"Issuer\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.ssl_common_name != '' OR p.ssl_issuer != '')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip, p.port\n",
+          "rawQueryText": "SELECT h.ip, p.port, p.ssl_common_name AS \"Common Name\", p.ssl_issuer AS \"Issuer\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND (p.ssl_common_name != '' OR p.ssl_issuer != '')\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -1427,7 +1759,7 @@
     {
       "datasource": {
         "type": "frser-sqlite-datasource",
-        "uid": "P2D2EEF3E092AF52B"
+        "uid": "${DS_SQLITE}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1453,7 +1785,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 68
       },
       "id": 18,
       "options": {
@@ -1466,11 +1798,11 @@
         {
           "datasource": {
             "type": "frser-sqlite-datasource",
-            "uid": "P2D2EEF3E092AF52B"
+            "uid": "${DS_SQLITE}"
           },
-          "queryText": "SELECT h.ip, p.port, p.service_info AS \"Service\", p.script_outputs AS \"NSE Script Output\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND p.script_outputs IS NOT NULL AND p.script_outputs != ''\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip, p.port\n",
+          "queryText": "SELECT h.ip, p.port, p.service_info AS \"Service\", sr.script_id AS \"NSE Script\", sr.output AS \"Results\"\nFROM script_results sr\nJOIN ports p ON sr.port_id = p.id\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open'\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
           "queryType": "table",
-          "rawQueryText": "SELECT h.ip, p.port, p.service_info AS \"Service\", p.script_outputs AS \"NSE Script Output\"\nFROM ports p\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open' AND p.script_outputs IS NOT NULL AND p.script_outputs != ''\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN (h.ip LIKE '%'||'${SearchTerm}'||'%' OR h.hostname LIKE '%'||'${SearchTerm}'||'%' OR h.os LIKE '%'||'${SearchTerm}'||'%' OR p.port LIKE '%'||'${SearchTerm}'||'%' OR p.service_info LIKE '%'||'${SearchTerm}'||'%' OR p.script_outputs LIKE '%'||'${SearchTerm}'||'%')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip, p.port\n",
+          "rawQueryText": "SELECT h.ip, p.port, p.service_info AS \"Service\", sr.script_id AS \"NSE Script\", sr.output AS \"Results\"\nFROM script_results sr\nJOIN ports p ON sr.port_id = p.id\nJOIN hosts h ON p.host_id = h.id\nWHERE p.state = 'open'\nAND h.start_time >= $__from AND h.end_time < $__to\nAND ('${SearchTerm}' = '' OR (\n  CASE \n    WHEN '${SearchField}' = 'Any' THEN h.id IN (SELECT host_id FROM v_search WHERE content MATCH '${SearchTerm}')\n    WHEN '${SearchField}' = 'IP' THEN h.ip LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Port' THEN p.port LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Service' THEN p.service_info LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'OS' THEN h.os LIKE '%'||'${SearchTerm}'||'%'\n    WHEN '${SearchField}' = 'Hostname' THEN h.hostname LIKE '%'||'${SearchTerm}'||'%'\n  END\n))\nORDER BY h.ip_int ASC, CAST(p.port AS INTEGER) ASC\n",
           "refId": "A",
           "timeColumns": [
             "time",
@@ -1562,7 +1894,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Nmap Dashboard",
+  "title": "Unified Security Dashboard",
   "uid": "cdikljcadaf40c",
   "version": 1,
   "weekStart": ""
