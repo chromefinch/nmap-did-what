@@ -392,11 +392,12 @@ def run_targeted_nse(target_info, output_dir_path, sanitized_scan_title_as_prefi
         script_name_for_file = "dns-enum"
     # 8. Printers
     elif any(x in service_name for x in ['printer', 'jetdirect', 'hp', 'xerox', 'zebra']):
-         script_cmd = ["--script", "printer-info"]
-         script_name_for_file = "printer-info"
+        # pjl-ready-message works well for port 9100 (JetDirect)
+        script_cmd = ["--script", "pjl-ready-message"]
+        script_name_for_file = "pjl-info"
     elif 'ipp' in service_name or 'cups' in service_name:
-         script_cmd = ["--script", "ipp-enum,cups-info"]
-         script_name_for_file = "ipp-info"
+        script_cmd = ["--script", "cups-info"] # Note: ipp-enum is also not a standard script
+        script_name_for_file = "cups-info"
     # 9. SNMP
     elif 'snmp' in service_name:
         script_cmd = ["--script", "snmp-info,snmp-sysdescr,snmp-processes"]
